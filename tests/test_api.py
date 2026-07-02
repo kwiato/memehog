@@ -80,3 +80,22 @@ async def test_job_submit_and_status(client):
     resp = await client.get(f"/api/v1/jobs/{job['id']}", headers=auth())
     assert resp.status_code == 200
     assert resp.json()["url"] == "https://example.com/x.jpg"
+
+
+async def test_ui_upload_reports_duplicates(client):
+    def post(name, color):
+        return client.post(
+            "/ui/upload",
+            files={"files": (name, make_png(color), "image/png")},
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+
+    assert (await post("a.png", "red")).json() == {
+        "added": 1, "duplicates": 0, "queued": 0,
+    }
+    # same bytes under a different name -> duplicate, not stored twice
+    assert (await post("b.png", "red")).json() == {
+        "added": 0, "duplicates": 1, "queued": 0,
+    }
+    grid = await client.get("/ui/items", params={"page": 1})
+    assert grid.text.count('class="card"') == 1

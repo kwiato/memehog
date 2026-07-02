@@ -4,7 +4,12 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -152,6 +157,8 @@ async def upload(
     queue: DownloadQueue = Depends(get_queue),
 ):
     is_spicy = spicy == "1"
+    added = 0
+    duplicates = 0
     for file in files or []:
         if not file.filename:
             continue
@@ -160,17 +167,25 @@ async def upload(
         with tmp_path.open("wb") as fh:
             while chunk := await file.read(1024 * 1024):
                 fh.write(chunk)
-        await ingest_file(
+        _, created = await ingest_file(
             session, settings, search, tmp_path,
             origin="web", caption=caption or None, uploader="web",
             spicy=is_spicy,
         )
+        if created:
+            added += 1
+        else:
+            duplicates += 1
+    queued = 0
     if url.strip():
         await queue.submit(
             url.strip(), origin="web", requested_by="web", spicy=is_spicy
         )
+        queued = 1
     if request.headers.get("x-requested-with") == "XMLHttpRequest":
-        return Response(status_code=204)
+        return JSONResponse(
+            {"added": added, "duplicates": duplicates, "queued": queued}
+        )
     return RedirectResponse("/", status_code=303)
 
 

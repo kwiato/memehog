@@ -115,7 +115,8 @@ async def test_ui_upload_spicy(client):
         files={"files": ("hot.png", make_png("magenta"), "image/png")},
         headers={"X-Requested-With": "XMLHttpRequest"},
     )
-    assert resp.status_code == 204
+    assert resp.status_code == 200
+    assert resp.json() == {"added": 1, "duplicates": 0, "queued": 0}
 
     grid = await client.get("/ui/items", params={"page": 1})
     assert "/detail" not in grid.text
