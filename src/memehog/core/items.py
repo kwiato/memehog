@@ -80,6 +80,21 @@ def _apply_filters(stmt, *, tag: str, media_type: str, spicy: bool):
     return stmt
 
 
+async def random_item(
+    session: AsyncSession, *, spicy: bool = False, exclude_id: int | None = None
+) -> Item | None:
+    stmt = (
+        select(Item)
+        .options(selectinload(Item.tags))
+        .order_by(func.random())
+        .limit(1)
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(Item.id != exclude_id)
+    stmt = _apply_filters(stmt, tag="", media_type="", spicy=spicy)
+    return await session.scalar(stmt)
+
+
 async def get_item(session: AsyncSession, item_id: int) -> Item | None:
     return await session.scalar(
         select(Item).where(Item.id == item_id).options(selectinload(Item.tags))

@@ -112,6 +112,32 @@ class TelegramClient(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class Submission(Base):
+    """A meme sent by a non-whitelisted Telegram user, quarantined in the
+    pending dir until the owner votes 👍/👎. Only on approval does the file
+    get ingested into the library proper."""
+
+    __tablename__ = "submissions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    # Path relative to the pending dir (quarantine, not the library).
+    filename: Mapped[str] = mapped_column(String(255))
+    caption: Mapped[str | None] = mapped_column(Text, default=None)
+    submitter_id: Mapped[int] = mapped_column(index=True)
+    submitter_name: Mapped[str | None] = mapped_column(String(128), default=None)
+    status: Mapped[str] = mapped_column(
+        String(16), default="pending"
+    )  # pending | approved | rejected
+    item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("items.id", ondelete="SET NULL"), default=None
+    )
+    # JSON list of [chat_id, message_id] pairs of the owner vote messages,
+    # so they can be edited once a decision is made.
+    vote_msgs: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class Job(Base):
     """A queued URL download request."""
 

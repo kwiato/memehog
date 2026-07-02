@@ -108,6 +108,56 @@
     if (e.key === 'Escape') closeUpload();
   });
 
+  // --- prev/next navigation in the detail lightbox -------------------------
+  // Order comes from the grid DOM, so it follows the active filters. At the
+  // end of the loaded cards the infinite-scroll sentinel is triggered to
+  // fetch the next page before advancing.
+  const gridCards = () => Array.from(document.querySelectorAll('#grid .card[data-id]'));
+
+  function navigateDetail(dir) {
+    const root = document.querySelector('#modal [data-item-id]');
+    if (!root) return;
+    const cards = gridCards();
+    const idx = cards.findIndex((c) => c.dataset.id === root.dataset.itemId);
+    if (idx === -1) return;
+    const target = cards[idx + dir];
+    if (target) {
+      htmx.ajax('GET', `/ui/items/${target.dataset.id}/detail`, '#modal');
+      return;
+    }
+    const sentinel = document.querySelector('#grid .sentinel');
+    if (dir === 1 && sentinel) {
+      document.body.addEventListener(
+        'htmx:afterSettle', () => navigateDetail(1), { once: true }
+      );
+      htmx.trigger(sentinel, 'revealed');
+    }
+  }
+
+  function updateArrows() {
+    const root = document.querySelector('#modal [data-item-id]');
+    if (!root) return;
+    const cards = gridCards();
+    const idx = cards.findIndex((c) => c.dataset.id === root.dataset.itemId);
+    const prev = root.querySelector('.nav-arrow.prev');
+    const next = root.querySelector('.nav-arrow.next');
+    const lastLoaded = idx === cards.length - 1 && !document.querySelector('#grid .sentinel');
+    if (prev) prev.hidden = idx <= 0;
+    if (next) next.hidden = idx === -1 || lastLoaded;
+  }
+
+  document.body.addEventListener('htmx:afterSwap', (e) => {
+    if (e.target.id === 'modal') updateArrows();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (e.target.closest('input, textarea, select')) return;
+    if (!document.querySelector('#modal [data-item-id]')) return;
+    e.preventDefault();
+    navigateDetail(e.key === 'ArrowRight' ? 1 : -1);
+  });
+
   function updateCaptionRow() {
     const filled = fileInput.files.length > 0 || urlInput.value.trim() !== '';
     captionRow.classList.toggle('open', filled);

@@ -1,5 +1,15 @@
 {% set is_spicy = item.tags | selectattr('name', 'equalto', 'spicy') | list | length > 0 %}
-<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
+<div class="modal-backdrop" data-item-id="{{ item.id }}" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
+  <button class="nav-arrow prev" title="Previous (←)" aria-label="Previous meme" onclick="navigateDetail(-1)">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+      <path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+  </button>
+  <button class="nav-arrow next" title="Next (→)" aria-label="Next meme" onclick="navigateDetail(1)">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+      <path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+  </button>
   <div class="modal-box">
     <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
     <div class="modal-media">
@@ -27,12 +37,12 @@
         <div class="actions">
           <a class="btn" href="/media/{{ item.filename }}" download>⬇ Download</a>
           <button class="btn" onclick="shareItem('/media/{{ item.filename }}')">📤 Share</button>
+          <button class="btn spicy-btn{{ ' active' if is_spicy }}"
+                  title="{{ 'Unmark spicy' if is_spicy else 'Mark as spicy' }}"
+                  hx-post="/ui/items/{{ item.id }}/spicy" hx-target="#modal" hx-swap="innerHTML">🔥</button>
           <details class="dropdown kebab">
             <summary class="btn" title="More">⋮</summary>
             <div class="dropdown-menu">
-              <button hx-post="/ui/items/{{ item.id }}/spicy" hx-target="#modal" hx-swap="innerHTML">
-                {{ '🧊 Unmark spicy' if is_spicy else '🔥 Mark as spicy' }}
-              </button>
               <button class="danger" hx-post="/ui/items/{{ item.id }}/delete"
                       hx-confirm="Delete this meme forever?">🗑 Delete</button>
             </div>

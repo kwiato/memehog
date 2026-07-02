@@ -1,6 +1,6 @@
 {% if items %}
   {% for item in items %}
-  <div class="card" hx-get="/ui/items/{{ item.id }}/detail" hx-target="#modal" hx-swap="innerHTML">
+  <div class="card" data-id="{{ item.id }}" hx-get="/ui/items/{{ item.id }}/detail" hx-target="#modal" hx-swap="innerHTML">
     {% if item.thumb_filename %}
       <img src="/thumbs/{{ item.thumb_filename }}" alt="{{ item.caption or 'meme' }}" loading="lazy">
     {% else %}

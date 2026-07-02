@@ -17,6 +17,7 @@ from .models import (  # noqa: F401
     Item,
     ItemTag,
     Job,
+    Submission,
     Tag,
     TelegramClient,
 )

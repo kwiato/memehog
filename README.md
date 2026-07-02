@@ -8,6 +8,7 @@
 - 🖼️ **Web gallery** — masonry grid, infinite scroll, lightbox, tagging, upload by file, URL or drag&drop onto the page
 - 🔌 **REST API** with token auth — the future Chrome extension and Android app will use it
 - 👥 **Multi-user** — friends send `/register` to the bot, you approve them with one tap in Telegram (or in web Settings)
+- 🗳 **Guest submissions** — strangers can send the bot a meme *file* (never links); it's quarantined until you vote 👍/👎 in Telegram, and an accepted sender gets a random meme back as a thank-you
 - 🔥 **Spicy mode** — memes tagged `spicy` are hidden from the default gallery and only appear behind the 🔥 button; their files live in a separate `library/spicy/` folder, and uploads made while 🔥 mode is on land there directly
 - 🌙 **Nightly maintenance** — converts `webp → jpg` and `webm → mp4` (formats many apps choke on); schedule configurable in Settings
 - 🦾 Designed for small ARM boards: one container, one process, SQLite, no external services
@@ -100,6 +101,8 @@ Updating: *Recreate* the container with *Re-pull image* enabled (or use Watchtow
 **Library layout** — files live under `library/YYYY/<hash>.<ext>` on disk (spicy ones under `library/spicy/YYYY/…` — toggling 🔥 on a meme moves the file), deduplicated by content hash. The nightly job (default 03:00, configurable in Settings) transcodes `webp`/`webm` into universally supported `jpg`/`mp4`.
 
 **Access for friends** — `ALLOWED_TELEGRAM_IDS` holds the owner account(s). Anyone else who messages the bot gets a hint to send `/register`; the owner receives the request in Telegram with ✅/❌ buttons, and approved users land in Settings → *Additional Telegram clients*, where they can also be added or removed manually.
+
+**Guest submissions** — someone who isn't registered can still send the bot a meme as a *file* (photo/video/GIF). Links from guests are never downloaded. The file is quarantined in `pending/` (outside the library, no processing), deduplicated against the library, and rate-limited (3 awaiting votes, 10 per day per sender). The owner gets the meme in Telegram with 👍/👎 buttons: 👍 ingests it into the library and sends the submitter a random (non-spicy) meme as a reward, 👎 deletes it.
 
 ## Configuration
 

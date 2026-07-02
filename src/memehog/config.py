@@ -41,6 +41,11 @@ class Settings(BaseSettings):
         return self.data_dir / "tmp"
 
     @property
+    def pending_dir(self) -> Path:
+        """Quarantine for guest submissions awaiting the owner's vote."""
+        return self.data_dir / "pending"
+
+    @property
     def db_path(self) -> Path:
         return self.data_dir / "memehog.db"
 
@@ -49,5 +54,5 @@ class Settings(BaseSettings):
         return Path(self.cookies_file) if self.cookies_file else None
 
     def ensure_dirs(self) -> None:
-        for d in (self.library_dir, self.thumbs_dir, self.tmp_dir):
+        for d in (self.library_dir, self.thumbs_dir, self.tmp_dir, self.pending_dir):
             d.mkdir(parents=True, exist_ok=True)
