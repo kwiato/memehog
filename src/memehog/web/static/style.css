@@ -182,27 +182,42 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
 .drop-spicy { display: none; color: var(--accent); font-size: 14px; }
 body.spicy-mode .drop-spicy { display: block; }
 
+/* Masonry: rows are 8px units, JS assigns each card a row span computed
+   from the aspect ratio stored in data-ar (see layoutMasonry). The visual
+   vertical gap comes from the card's margin-bottom. */
 .grid {
-  columns: 5 220px;
-  column-gap: 10px;
-  padding: 14px 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-auto-rows: 8px;
+  row-gap: 0;
+  column-gap: 16px;
+  padding: 16px 20px;
+  max-width: 2000px;
+  margin: 0 auto;
 }
 
 .card {
   position: relative;
-  break-inside: avoid;
-  margin-bottom: 10px;
+  margin-bottom: 16px;
   border-radius: var(--radius);
   overflow: hidden;
   background: var(--bg2);
   cursor: pointer;
   transition: transform 0.12s ease;
+  /* poor man's virtual scroll: off-screen cards are neither laid out nor
+     painted, so a grid with thousands of items stays cheap */
+  content-visibility: auto;
 }
 .card:hover { transform: scale(1.02); outline: 2px solid var(--accent); }
-.card img { display: block; width: 100%; }
+.card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .card .placeholder {
   display: flex; align-items: center; justify-content: center;
-  height: 160px; font-size: 42px;
+  height: 100%; font-size: 42px;
 }
 .badge {
   position: absolute; right: 8px; bottom: 8px;
@@ -213,8 +228,8 @@ body.spicy-mode .drop-spicy { display: block; }
 }
 
 .muted { color: var(--muted); }
-.empty { column-span: all; text-align: center; padding: 60px 0; }
-.sentinel { height: 1px; }
+.empty { grid-column: 1 / -1; text-align: center; padding: 60px 0; }
+.sentinel { grid-column: 1 / -1; height: 1px; }
 
 .modal-backdrop {
   position: fixed; inset: 0; z-index: 100;
@@ -382,6 +397,11 @@ body.spicy-mode .topbar { border-bottom-color: var(--accent); }
 .about-logo { font-size: 64px; margin: 20px 0 0; }
 
 @media (max-width: 640px) {
-  .grid { columns: 2 140px; padding: 10px; }
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    column-gap: 8px;
+    padding: 10px;
+  }
+  .card { margin-bottom: 8px; }
   .topbar { padding: 10px 12px; }
 }

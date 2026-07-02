@@ -1,8 +1,10 @@
 {% if items %}
   {% for item in items %}
-  <div class="card" data-id="{{ item.id }}" hx-get="/ui/items/{{ item.id }}/detail" hx-target="#modal" hx-swap="innerHTML">
+  <div class="card" data-id="{{ item.id }}"
+       data-ar="{{ '%.4f' | format(item.height / item.width) if item.width and item.height else '1' }}"
+       hx-get="/ui/items/{{ item.id }}/detail" hx-target="#modal" hx-swap="innerHTML">
     {% if item.thumb_filename %}
-      <img src="/thumbs/{{ item.thumb_filename }}" alt="{{ item.caption or 'meme' }}" loading="lazy">
+      <img src="/thumbs/{{ item.thumb_filename }}" alt="{{ item.caption or 'meme' }}" loading="lazy" decoding="async">
     {% else %}
       <div class="placeholder">{{ '🎬' if item.media_type == 'video' else '🖼️' }}</div>
     {% endif %}

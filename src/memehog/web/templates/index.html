@@ -92,6 +92,34 @@
     spicyInput.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  // --- masonry: give each card a grid-row span from its aspect ratio ------
+  // Aspect ratios come from the DB (data-ar), so the layout is final before
+  // any image loads — no reflow, no library, and content-visibility keeps
+  // off-screen cards cheap.
+  const gridEl = document.getElementById('grid');
+
+  function layoutMasonry(force = false) {
+    const cards = gridEl.querySelectorAll('.card');
+    if (!cards.length) return;
+    const unit = parseFloat(getComputedStyle(gridEl).gridAutoRows) || 8;
+    const colW = cards[0].offsetWidth;
+    const gap = parseFloat(getComputedStyle(cards[0]).marginBottom) || 16;
+    for (const card of cards) {
+      if (!force && card.style.gridRowEnd) continue;
+      // Clamp extreme ratios so one meme can't hog a whole column;
+      // object-fit:cover absorbs the difference for those outliers.
+      const ar = Math.min(Math.max(parseFloat(card.dataset.ar) || 1, 0.5), 2.2);
+      card.style.gridRowEnd = `span ${Math.ceil((colW * ar + gap) / unit)}`;
+    }
+  }
+
+  document.body.addEventListener('htmx:afterSwap', () => layoutMasonry());
+  let masonryResizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(masonryResizeTimer);
+    masonryResizeTimer = setTimeout(() => layoutMasonry(true), 150);
+  });
+
   const uploadForm = document.getElementById('upload-form');
   const fileInput = uploadForm.querySelector('input[name="files"]');
   const urlInput = uploadForm.querySelector('input[name="url"]');
