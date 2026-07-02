@@ -5,10 +5,10 @@
 - 🤖 **Telegram bot** — send a link or a photo/video/GIF, it lands in your library
 - ⬇️ **Downloads** Instagram posts/reels/carousels, TikToks and direct image/video links (yt-dlp + gallery-dl)
 - 🔍 **Full-text search** over captions, tags and filenames (SQLite FTS5) — with the schema ready for OCR text and vector embeddings
-- 🖼️ **Web gallery** — masonry grid, infinite scroll, lightbox, tagging, upload by file or URL
+- 🖼️ **Web gallery** — masonry grid, infinite scroll, lightbox, tagging, upload by file, URL or drag&drop onto the page
 - 🔌 **REST API** with token auth — the future Chrome extension and Android app will use it
 - 👥 **Multi-user** — friends send `/register` to the bot, you approve them with one tap in Telegram (or in web Settings)
-- 🔥 **Spicy mode** — memes tagged `spicy` are hidden from the default gallery and only appear behind the 🔥 button
+- 🔥 **Spicy mode** — memes tagged `spicy` are hidden from the default gallery and only appear behind the 🔥 button; their files live in a separate `library/spicy/` folder, and uploads made while 🔥 mode is on land there directly
 - 🌙 **Nightly maintenance** — converts `webp → jpg` and `webm → mp4` (formats many apps choke on); schedule configurable in Settings
 - 🦾 Designed for small ARM boards: one container, one process, SQLite, no external services
 
@@ -95,9 +95,9 @@ Updating: *Recreate* the container with *Re-pull image* enabled (or use Watchtow
 - a direct link to an image or video file
 - a photo, video or GIF straight from your phone (the caption becomes searchable text)
 
-**Web UI** — browse, search (`kot w kapeluszu` matches prefixes, so partial words work), filter by type/tag, click a meme for the lightbox where you can tag, download, share or delete it (delete hides under the ⋮ menu, file details under the ⌄ arrow). The **＋ Add** button uploads files or queues a link for download. The **🔥 button** switches to spicy-only view; mark a meme as spicy from its ⋮ menu. The **☰ menu** opens Settings (Telegram clients, nightly maintenance hour) and About.
+**Web UI** — browse, search (`kot w kapeluszu` matches prefixes, so partial words work), filter by type/tag, click a meme for the lightbox where you can tag, download, share or delete it (delete hides under the ⋮ menu, file details under the ⌄ arrow). The floating **＋ button** (bottom right) opens the upload dialog for files or a link to download — or skip it and **drag&drop files anywhere on the page**. The **🔥 button** switches to spicy-only view; while it's on, uploads and drops are saved as spicy right away. Mark or unmark an existing meme from its ⋮ menu. The **☰ menu** opens Settings (Telegram clients, nightly maintenance hour) and About.
 
-**Library layout** — files live under `library/YYYY/<hash>.<ext>` on disk, deduplicated by content hash. The nightly job (default 03:00, configurable in Settings) transcodes `webp`/`webm` into universally supported `jpg`/`mp4`.
+**Library layout** — files live under `library/YYYY/<hash>.<ext>` on disk (spicy ones under `library/spicy/YYYY/…` — toggling 🔥 on a meme moves the file), deduplicated by content hash. The nightly job (default 03:00, configurable in Settings) transcodes `webp`/`webm` into universally supported `jpg`/`mp4`.
 
 **Access for friends** — `ALLOWED_TELEGRAM_IDS` holds the owner account(s). Anyone else who messages the bot gets a hint to send `/register`; the owner receives the request in Telegram with ✅/❌ buttons, and approved users land in Settings → *Additional Telegram clients*, where they can also be added or removed manually.
 

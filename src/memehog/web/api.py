@@ -88,6 +88,7 @@ async def get_item(
 async def upload_item(
     file: UploadFile,
     caption: str = Form(""),
+    spicy: bool = Form(False),
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
     search: SearchBackend = Depends(get_search),
@@ -100,7 +101,7 @@ async def upload_item(
             fh.write(chunk)
     item, created = await ingest_file(
         session, settings, search, tmp_path,
-        origin="api", caption=caption or None,
+        origin="api", caption=caption or None, spicy=spicy,
     )
     return {"created": created, **item_to_dict(item)}
 
@@ -191,13 +192,14 @@ async def delete_client(
 
 class JobBody(BaseModel):
     url: str
+    spicy: bool = False
 
 
 @router.post("/jobs", status_code=202)
 async def submit_job(
     body: JobBody, queue: DownloadQueue = Depends(get_queue)
 ) -> dict:
-    job = await queue.submit(body.url, origin="api")
+    job = await queue.submit(body.url, origin="api", spicy=body.spicy)
     return job_to_dict(job)
 
 

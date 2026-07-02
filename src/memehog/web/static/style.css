@@ -64,15 +64,69 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
 .btn.danger { color: var(--danger); border-color: var(--danger); }
 .btn.danger:hover { background: var(--danger); color: #fff; }
 
-.upload-panel {
-  display: none;
-  padding: 16px 20px;
-  background: var(--bg2);
-  border-bottom: 1px solid var(--bg3);
+/* --- floating add button + upload modal + drag&drop --- */
+.fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 60;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  transition: transform 0.12s ease, filter 0.12s ease;
 }
-.upload-panel.open { display: block; }
-.upload-panel form { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; }
-.upload-panel label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+.fab:hover { transform: scale(1.08); filter: brightness(1.1); }
+.fab.busy { pointer-events: none; animation: fab-pulse 1s ease-in-out infinite; }
+@keyframes fab-pulse {
+  50% { transform: scale(0.9); opacity: 0.6; }
+}
+
+.upload-modal { display: none; }
+.upload-modal.open { display: flex; }
+.upload-modal form { display: flex; flex-direction: column; gap: 14px; }
+.upload-modal label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+.spicy-flag { display: none; font-size: 13px; color: var(--accent); font-weight: normal; }
+body.spicy-mode .spicy-flag { display: inline; }
+
+.dropzone {
+  border: 2px dashed var(--bg3);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+}
+.dropzone:hover { border-color: var(--accent); }
+
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  pointer-events: none; /* let drag events fall through to the window */
+}
+.drop-overlay.active { display: flex; }
+.drop-inner {
+  border: 3px dashed var(--accent);
+  border-radius: 16px;
+  padding: 44px 60px;
+  text-align: center;
+  font-size: 18px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+.drop-icon { font-size: 54px; }
+.drop-spicy { display: none; color: var(--accent); font-size: 14px; }
+body.spicy-mode .drop-spicy { display: block; }
 
 .grid {
   columns: 5 220px;

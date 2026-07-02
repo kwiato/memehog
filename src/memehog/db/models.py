@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, LargeBinary, String, Text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -116,6 +125,8 @@ class Job(Base):
     error: Mapped[str | None] = mapped_column(Text, default=None)
     origin: Mapped[str] = mapped_column(String(16))  # telegram | web | api
     requested_by: Mapped[str | None] = mapped_column(String(128), default=None)
+    # Ingest the downloaded files straight into the spicy stash.
+    spicy: Mapped[bool] = mapped_column(Boolean, default=False)
     item_id: Mapped[int | None] = mapped_column(
         ForeignKey("items.id", ondelete="SET NULL"), default=None
     )

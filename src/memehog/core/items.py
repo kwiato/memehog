@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import shutil
+
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,13 +11,9 @@ from sqlalchemy.orm import selectinload
 from ..config import Settings
 from ..db.models import Item, ItemTag, Tag
 from ..search.base import SearchBackend
-from .library import delete_item_files
+from .library import SPICY_TAG, delete_item_files
 
 PAGE_SIZE = 60
-
-# Items tagged with this are hidden from the default view and only shown
-# in 🔥 mode (never mixed with regular results).
-SPICY_TAG = "spicy"
 
 
 def _spicy_ids():
@@ -145,12 +144,34 @@ async def remove_tag(
 
 
 async def toggle_spicy(
-    session: AsyncSession, search: SearchBackend, item: Item
+    session: AsyncSession, settings: Settings, search: SearchBackend, item: Item
 ) -> Item:
-    names = {t.name for t in item.tags}
-    if SPICY_TAG in names:
-        return await remove_tag(session, search, item, SPICY_TAG)
-    return await add_tag(session, search, item, SPICY_TAG)
+    make_spicy = SPICY_TAG not in {t.name for t in item.tags}
+    await _move_item_file(session, settings, item, spicy=make_spicy)
+    if make_spicy:
+        return await add_tag(session, search, item, SPICY_TAG)
+    return await remove_tag(session, search, item, SPICY_TAG)
+
+
+async def _move_item_file(
+    session: AsyncSession, settings: Settings, item: Item, *, spicy: bool
+) -> None:
+    """Keep the on-disk split in sync with the tag: spicy files live under
+    "spicy/" in the library. Missing files are left alone (path unchanged)."""
+    old_rel = item.filename
+    prefix = f"{SPICY_TAG}/"
+    if spicy:
+        new_rel = old_rel if old_rel.startswith(prefix) else prefix + old_rel
+    else:
+        new_rel = old_rel.removeprefix(prefix)
+    src = settings.library_dir / old_rel
+    if new_rel == old_rel or not src.exists():
+        return
+    dest = settings.library_dir / new_rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(shutil.move, str(src), str(dest))
+    item.filename = new_rel
+    await session.flush()
 
 
 async def _reindex(session: AsyncSession, search: SearchBackend, item_id: int) -> Item:

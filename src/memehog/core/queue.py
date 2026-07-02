@@ -43,10 +43,11 @@ class DownloadQueue:
         *,
         origin: str,
         requested_by: str | None = None,
+        spicy: bool = False,
         callback: JobCallback | None = None,
     ) -> Job:
         async with self._session_factory() as session:
-            job = Job(url=url, origin=origin, requested_by=requested_by)
+            job = Job(url=url, origin=origin, requested_by=requested_by, spicy=spicy)
             session.add(job)
             await session.commit()
         if callback is not None:
@@ -108,6 +109,7 @@ class DownloadQueue:
                         origin=job.origin,
                         caption=dl.caption,
                         uploader=dl.uploader,
+                        spicy=job.spicy,
                     )
                     items.append(item)
                     created_any = created_any or created

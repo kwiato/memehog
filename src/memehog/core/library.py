@@ -9,11 +9,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Settings
-from ..db.models import Item, utcnow
+from ..db.models import Item, Tag, utcnow
 from ..search.base import SearchBackend
 from .media import make_thumbnail, probe, sha256_file
 
 log = logging.getLogger(__name__)
+
+# Items tagged with this are hidden from the default view and only shown in
+# 🔥 mode. Their files also live under a "spicy/" subfolder of the library
+# so the folder on disk mirrors the split.
+SPICY_TAG = "spicy"
 
 
 async def ingest_file(
@@ -26,6 +31,7 @@ async def ingest_file(
     origin: str = "web",
     caption: str | None = None,
     uploader: str | None = None,
+    spicy: bool = False,
 ) -> tuple[Item, bool]:
     """Move a downloaded/uploaded file into the library and register it.
 
@@ -42,6 +48,8 @@ async def ingest_file(
     now = utcnow()
     ext = src_path.suffix.lower() or ".bin"
     rel_path = f"{now:%Y}/{sha[:16]}{ext}"
+    if spicy:
+        rel_path = f"{SPICY_TAG}/{rel_path}"
     dest = settings.library_dir / rel_path
     dest.parent.mkdir(parents=True, exist_ok=True)
     await asyncio.to_thread(shutil.move, str(src_path), str(dest))
@@ -50,6 +58,15 @@ async def ingest_file(
     thumb_ok = await asyncio.to_thread(
         make_thumbnail, dest, settings.thumbs_dir / thumb_rel, info.media_type
     )
+
+    tags: list[Tag] = []
+    if spicy:
+        tag = await session.scalar(select(Tag).where(Tag.name == SPICY_TAG))
+        if tag is None:
+            tag = Tag(name=SPICY_TAG)
+            session.add(tag)
+            await session.flush()
+        tags.append(tag)
 
     item = Item(
         sha256=sha,
@@ -67,11 +84,11 @@ async def ingest_file(
         thumb_filename=thumb_rel if thumb_ok else None,
         # Initialize the collection so accessing .tags on this fresh instance
         # never triggers a sync lazy-load (forbidden under asyncio).
-        tags=[],
+        tags=tags,
     )
     session.add(item)
     await session.flush()
-    await search.index_item(session, item)
+    await search.index_item(session, item, tags=[t.name for t in tags])
     await session.commit()
     log.info("Ingested item %s (%s) from %s", item.id, rel_path, origin)
     return item, True

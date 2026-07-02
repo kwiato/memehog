@@ -17,7 +17,6 @@
     </select>
     <input type="hidden" name="spicy" value="0">
   </form>
-  <button class="btn" onclick="document.getElementById('upload-panel').classList.toggle('open')">＋ Add</button>
   <button class="btn spicy-btn" title="Spicy mode" onclick="toggleSpicy(this)">🔥</button>
   <details class="dropdown">
     <summary class="btn" title="Menu">☰</summary>
@@ -30,32 +29,126 @@
   </details>
 </header>
 
-<section id="upload-panel" class="upload-panel">
-  <form action="/ui/upload" method="post" enctype="multipart/form-data">
-    <label>Upload files
-      <input type="file" name="files" multiple accept="image/*,video/*">
-    </label>
-    <label>…or paste a link (Instagram / TikTok / direct)
-      <input type="url" name="url" placeholder="https://…">
-    </label>
-    <label>Caption (optional)
-      <input type="text" name="caption" placeholder="Description for search">
-    </label>
-    <button class="btn primary" type="submit">Add to library</button>
-  </form>
-</section>
-
 <main id="grid" class="grid" hx-get="/ui/items?page=1" hx-trigger="load" hx-swap="innerHTML">
   <p class="muted">Loading…</p>
 </main>
 
+<button class="fab" title="Add memes" aria-label="Add memes" onclick="openUpload()">
+  <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+    <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  </svg>
+</button>
+
+<div id="upload-modal" class="modal-backdrop upload-modal" onclick="if (event.target === this) closeUpload()">
+  <div class="modal-box panel">
+    <button class="close" onclick="closeUpload()">✕</button>
+    <h2>Add memes <span class="spicy-flag">🔥 straight to the spicy stash</span></h2>
+    <form id="upload-form" action="/ui/upload" method="post" enctype="multipart/form-data">
+      <label class="dropzone">
+        <input type="file" name="files" multiple accept="image/*,video/*">
+        <span class="muted">…or just drop files anywhere on the page</span>
+      </label>
+      <label>Paste a link (Instagram / TikTok / direct)
+        <input type="url" name="url" placeholder="https://…">
+      </label>
+      <label>Caption (optional)
+        <input type="text" name="caption" placeholder="Description for search">
+      </label>
+      <input type="hidden" name="spicy" value="0">
+      <button class="btn primary" type="submit">Add to library</button>
+    </form>
+  </div>
+</div>
+
+<div id="drop-overlay" class="drop-overlay">
+  <div class="drop-inner">
+    <div class="drop-icon">📥</div>
+    <p>Drop to add to the library</p>
+    <p class="drop-spicy">🔥 spicy mode on — going straight to the spicy stash</p>
+  </div>
+</div>
+
 <script>
+  const spicyInput = document.querySelector('.filters input[name="spicy"]');
+  const spicyOn = () => spicyInput.value === '1';
+
   function toggleSpicy(btn) {
-    const input = document.querySelector('.filters input[name="spicy"]');
-    input.value = input.value === '1' ? '0' : '1';
-    btn.classList.toggle('active', input.value === '1');
-    document.body.classList.toggle('spicy-mode', input.value === '1');
-    input.dispatchEvent(new Event('change', { bubbles: true }));
+    spicyInput.value = spicyOn() ? '0' : '1';
+    btn.classList.toggle('active', spicyOn());
+    document.body.classList.toggle('spicy-mode', spicyOn());
+    refreshGrid();
   }
+
+  function refreshGrid() {
+    // The filters form listens for this and re-fetches the grid with the
+    // current query/type/tag/spicy values.
+    spicyInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function openUpload() { document.getElementById('upload-modal').classList.add('open'); }
+  function closeUpload() { document.getElementById('upload-modal').classList.remove('open'); }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeUpload();
+  });
+
+  async function uploadFormData(fd) {
+    fd.set('spicy', spicyOn() ? '1' : '0');
+    const fab = document.querySelector('.fab');
+    fab.classList.add('busy');
+    try {
+      const resp = await fetch('/ui/upload', {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      refreshGrid();
+    } catch (err) {
+      alert('Upload failed: ' + err.message);
+    } finally {
+      fab.classList.remove('busy');
+    }
+  }
+
+  document.getElementById('upload-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    uploadFormData(new FormData(e.target));
+    e.target.reset();
+    closeUpload();
+  });
+
+  // Whole-page drag&drop: any file dragged over the window shows the overlay
+  // and dropping uploads it (as spicy when 🔥 mode is on).
+  const overlay = document.getElementById('drop-overlay');
+  let dragDepth = 0;
+  const hasFiles = (e) =>
+    e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+
+  window.addEventListener('dragenter', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth++;
+    overlay.classList.add('active');
+  });
+  window.addEventListener('dragover', (e) => {
+    if (hasFiles(e)) e.preventDefault();
+  });
+  window.addEventListener('dragleave', (e) => {
+    if (!hasFiles(e)) return;
+    if (--dragDepth <= 0) {
+      dragDepth = 0;
+      overlay.classList.remove('active');
+    }
+  });
+  window.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    overlay.classList.remove('active');
+    if (!e.dataTransfer.files.length) return;
+    const fd = new FormData();
+    for (const f of e.dataTransfer.files) fd.append('files', f);
+    uploadFormData(fd);
+  });
 </script>
 {% endblock %}

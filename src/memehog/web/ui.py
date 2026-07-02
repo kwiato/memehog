@@ -145,11 +145,13 @@ async def upload(
     files: list[UploadFile] | None = None,
     url: str = Form(""),
     caption: str = Form(""),
+    spicy: str = Form("0"),
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
     search: SearchBackend = Depends(get_search),
     queue: DownloadQueue = Depends(get_queue),
 ):
+    is_spicy = spicy == "1"
     for file in files or []:
         if not file.filename:
             continue
@@ -161,9 +163,14 @@ async def upload(
         await ingest_file(
             session, settings, search, tmp_path,
             origin="web", caption=caption or None, uploader="web",
+            spicy=is_spicy,
         )
     if url.strip():
-        await queue.submit(url.strip(), origin="web", requested_by="web")
+        await queue.submit(
+            url.strip(), origin="web", requested_by="web", spicy=is_spicy
+        )
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return Response(status_code=204)
     return RedirectResponse("/", status_code=303)
 
 
@@ -185,12 +192,13 @@ async def toggle_spicy(
     request: Request,
     item_id: int,
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
     search: SearchBackend = Depends(get_search),
 ):
     item = await items_svc.get_item(session, item_id)
     if item is None:
         raise HTTPException(404, "Item not found")
-    item = await items_svc.toggle_spicy(session, search, item)
+    item = await items_svc.toggle_spicy(session, settings, search, item)
     return templates.TemplateResponse(request, "partials/detail.html", {"item": item})
 
 

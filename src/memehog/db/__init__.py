@@ -52,4 +52,15 @@ async def init_db(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text(FTS_DDL))
+        await _migrate(conn)
     return async_sessionmaker(engine, expire_on_commit=False)
+
+
+async def _migrate(conn) -> None:
+    """create_all only creates missing tables; columns added in later versions
+    are patched in by hand (no alembic for a hobby app)."""
+    cols = {row[1] for row in await conn.execute(text("PRAGMA table_info(jobs)"))}
+    if "spicy" not in cols:
+        await conn.execute(
+            text("ALTER TABLE jobs ADD COLUMN spicy BOOLEAN NOT NULL DEFAULT 0")
+        )
