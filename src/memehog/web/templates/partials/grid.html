@@ -1,0 +1,23 @@
+{% if items %}
+  {% for item in items %}
+  <div class="card" hx-get="/ui/items/{{ item.id }}/detail" hx-target="#modal" hx-swap="innerHTML">
+    {% if item.thumb_filename %}
+      <img src="/thumbs/{{ item.thumb_filename }}" alt="{{ item.caption or 'meme' }}" loading="lazy">
+    {% else %}
+      <div class="placeholder">{{ '🎬' if item.media_type == 'video' else '🖼️' }}</div>
+    {% endif %}
+    {% if item.media_type == 'video' %}
+      <span class="badge">▶{% if item.duration %} {{ (item.duration | round) | int }}s{% endif %}</span>
+    {% elif item.media_type == 'animation' %}
+      <span class="badge">GIF</span>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% if has_more %}
+  <div class="sentinel"
+       hx-get="/ui/items?q={{ q | urlencode }}&tag={{ tag | urlencode }}&type={{ type | urlencode }}&page={{ page + 1 }}"
+       hx-trigger="revealed" hx-swap="outerHTML"></div>
+  {% endif %}
+{% elif page == 1 %}
+  <p class="muted empty">Nothing here yet. Send something to the bot or hit ＋ Add!</p>
+{% endif %}

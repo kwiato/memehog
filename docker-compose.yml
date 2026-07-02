@@ -1,0 +1,14 @@
+services:
+  memehog:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: memehog
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    volumes:
+      - ${HOST_DATA_DIR:-./data}:/data

@@ -1,0 +1,157 @@
+:root {
+  --bg: #14151a;
+  --bg2: #1e2027;
+  --bg3: #2a2d36;
+  --fg: #e8e9ec;
+  --muted: #8a8f9c;
+  --accent: #e0743c;
+  --danger: #d84a4a;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--bg3);
+}
+
+.topbar h1 { font-size: 20px; margin: 0; white-space: nowrap; }
+.count { font-size: 13px; color: var(--muted); font-weight: normal; margin-left: 6px; }
+
+.filters { display: flex; gap: 8px; flex: 1; min-width: 260px; }
+
+input, select {
+  background: var(--bg2);
+  border: 1px solid var(--bg3);
+  color: var(--fg);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 14px;
+}
+input:focus, select:focus { outline: 1px solid var(--accent); }
+.filters input[type="search"] { flex: 1; }
+
+.btn {
+  background: var(--bg2);
+  border: 1px solid var(--bg3);
+  color: var(--fg);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+.btn:hover { background: var(--bg3); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger { color: var(--danger); border-color: var(--danger); }
+.btn.danger:hover { background: var(--danger); color: #fff; }
+
+.upload-panel {
+  display: none;
+  padding: 16px 20px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--bg3);
+}
+.upload-panel.open { display: block; }
+.upload-panel form { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; }
+.upload-panel label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+
+.grid {
+  columns: 5 220px;
+  column-gap: 10px;
+  padding: 14px 20px;
+}
+
+.card {
+  position: relative;
+  break-inside: avoid;
+  margin-bottom: 10px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg2);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.card:hover { transform: scale(1.02); outline: 2px solid var(--accent); }
+.card img { display: block; width: 100%; }
+.card .placeholder {
+  display: flex; align-items: center; justify-content: center;
+  height: 160px; font-size: 42px;
+}
+.badge {
+  position: absolute; right: 8px; bottom: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.muted { color: var(--muted); }
+.empty { column-span: all; text-align: center; padding: 60px 0; }
+.sentinel { height: 1px; }
+
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal-box {
+  position: relative;
+  background: var(--bg2);
+  border-radius: var(--radius);
+  max-width: min(1000px, 94vw);
+  max-height: 92vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.modal-media { overflow: auto; display: flex; justify-content: center; background: #000; }
+.modal-media img, .modal-media video {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}
+.modal-meta { padding: 14px 18px; }
+.caption { margin: 0 0 6px; }
+.modal-meta a { color: var(--accent); }
+.close {
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  background: rgba(0, 0, 0, 0.6); border: none; color: #fff;
+  border-radius: 50%; width: 32px; height: 32px; cursor: pointer; font-size: 14px;
+}
+
+.tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+.tag {
+  background: var(--bg3);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 13px;
+}
+.tag button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0 0 0 4px; }
+.tag button:hover { color: var(--danger); }
+.tag-form input { padding: 3px 10px; border-radius: 999px; font-size: 13px; width: 90px; }
+
+.actions { display: flex; gap: 8px; margin-top: 6px; }
+
+@media (max-width: 640px) {
+  .grid { columns: 2 140px; padding: 10px; }
+  .topbar { padding: 10px 12px; }
+}

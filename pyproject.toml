@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memehog"
+version = "0.1.0"
+description = "Self-hosted meme library: Telegram bot downloader + searchable web gallery"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "aiogram>=3.7",
+    "sqlalchemy[asyncio]>=2.0",
+    "aiosqlite>=0.20",
+    "yt-dlp>=2024.7.1",
+    "gallery-dl>=1.27",
+    "httpx>=0.27",
+    "pillow>=10.3",
+    "pydantic-settings>=2.3",
+    "apscheduler>=3.10,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+memehog = "memehog.__main__:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+memehog = ["web/templates/**/*", "web/static/**/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

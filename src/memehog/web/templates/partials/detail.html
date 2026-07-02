@@ -1,0 +1,38 @@
+<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
+  <div class="modal-box">
+    <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
+    <div class="modal-media">
+      {% if item.media_type == 'video' %}
+        <video src="/media/{{ item.filename }}" controls autoplay loop playsinline></video>
+      {% else %}
+        <img src="/media/{{ item.filename }}" alt="{{ item.caption or 'meme' }}">
+      {% endif %}
+    </div>
+    <div class="modal-meta">
+      {% if item.caption %}<p class="caption">{{ item.caption }}</p>{% endif %}
+      <p class="muted">
+        #{{ item.id }} · {{ item.created_at.strftime('%Y-%m-%d %H:%M') }} · {{ item.origin }}
+        {% if item.uploader %} · {{ item.uploader }}{% endif %}
+        {% if item.width %} · {{ item.width }}×{{ item.height }}{% endif %}
+        · {{ (item.file_size / 1024) | round | int }} KB
+        {% if item.source_url %} · <a href="{{ item.source_url }}" target="_blank" rel="noopener">source ↗</a>{% endif %}
+      </p>
+      <div class="tags">
+        {% for t in item.tags %}
+        <span class="tag">{{ t.name }}
+          <button hx-post="/ui/items/{{ item.id }}/tags/{{ t.name | urlencode }}/delete"
+                  hx-target="#modal" hx-swap="innerHTML" title="Remove tag">✕</button>
+        </span>
+        {% endfor %}
+        <form class="tag-form" hx-post="/ui/items/{{ item.id }}/tags" hx-target="#modal" hx-swap="innerHTML">
+          <input name="name" placeholder="+ tag" autocomplete="off">
+        </form>
+      </div>
+      <div class="actions">
+        <a class="btn" href="/media/{{ item.filename }}" download>⬇ Download</a>
+        <button class="btn danger" hx-post="/ui/items/{{ item.id }}/delete"
+                hx-confirm="Delete this meme forever?">🗑 Delete</button>
+      </div>
+    </div>
+  </div>
+</div>

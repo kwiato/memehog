@@ -1,0 +1,139 @@
+from __future__ import annotations
+
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..config import Settings
+from ..core import items as items_svc
+from ..core.library import ingest_file
+from ..core.queue import DownloadQueue
+from ..search.base import SearchBackend
+from .deps import get_queue, get_search, get_session, get_settings
+
+router = APIRouter()
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+@router.get("/", response_class=HTMLResponse)
+async def index(request: Request, session: AsyncSession = Depends(get_session)):
+    tags = await items_svc.all_tags(session)
+    count = await items_svc.count_items(session)
+    return templates.TemplateResponse(
+        request, "index.html", {"tags": tags, "count": count}
+    )
+
+
+@router.get("/ui/items", response_class=HTMLResponse)
+async def grid(
+    request: Request,
+    q: str = "",
+    tag: str = "",
+    type: str = "",
+    page: int = 1,
+    session: AsyncSession = Depends(get_session),
+    search: SearchBackend = Depends(get_search),
+):
+    items = await items_svc.list_items(
+        session, search, q=q, tag=tag, media_type=type, page=page
+    )
+    has_more = len(items) == items_svc.PAGE_SIZE
+    return templates.TemplateResponse(
+        request,
+        "partials/grid.html",
+        {
+            "items": items,
+            "page": page,
+            "has_more": has_more,
+            "q": q,
+            "tag": tag,
+            "type": type,
+        },
+    )
+
+
+@router.get("/ui/items/{item_id}/detail", response_class=HTMLResponse)
+async def detail(
+    request: Request,
+    item_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    item = await items_svc.get_item(session, item_id)
+    if item is None:
+        raise HTTPException(404, "Item not found")
+    return templates.TemplateResponse(request, "partials/detail.html", {"item": item})
+
+
+@router.post("/ui/upload")
+async def upload(
+    request: Request,
+    files: list[UploadFile] | None = None,
+    url: str = Form(""),
+    caption: str = Form(""),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+    search: SearchBackend = Depends(get_search),
+    queue: DownloadQueue = Depends(get_queue),
+):
+    for file in files or []:
+        if not file.filename:
+            continue
+        settings.tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_path = settings.tmp_dir / f"web-{uuid.uuid4().hex[:8]}-{file.filename}"
+        with tmp_path.open("wb") as fh:
+            while chunk := await file.read(1024 * 1024):
+                fh.write(chunk)
+        await ingest_file(
+            session, settings, search, tmp_path,
+            origin="web", caption=caption or None, uploader="web",
+        )
+    if url.strip():
+        await queue.submit(url.strip(), origin="web", requested_by="web")
+    return RedirectResponse("/", status_code=303)
+
+
+@router.post("/ui/items/{item_id}/delete")
+async def delete(
+    item_id: int,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+    search: SearchBackend = Depends(get_search),
+):
+    item = await items_svc.get_item(session, item_id)
+    if item is not None:
+        await items_svc.delete_item(session, settings, search, item)
+    return Response(status_code=200, headers={"HX-Refresh": "true"})
+
+
+@router.post("/ui/items/{item_id}/tags", response_class=HTMLResponse)
+async def add_tag(
+    request: Request,
+    item_id: int,
+    name: str = Form(...),
+    session: AsyncSession = Depends(get_session),
+    search: SearchBackend = Depends(get_search),
+):
+    item = await items_svc.get_item(session, item_id)
+    if item is None:
+        raise HTTPException(404, "Item not found")
+    item = await items_svc.add_tag(session, search, item, name)
+    return templates.TemplateResponse(request, "partials/detail.html", {"item": item})
+
+
+@router.post("/ui/items/{item_id}/tags/{name}/delete", response_class=HTMLResponse)
+async def remove_tag(
+    request: Request,
+    item_id: int,
+    name: str,
+    session: AsyncSession = Depends(get_session),
+    search: SearchBackend = Depends(get_search),
+):
+    item = await items_svc.get_item(session, item_id)
+    if item is None:
+        raise HTTPException(404, "Item not found")
+    item = await items_svc.remove_tag(session, search, item, name)
+    return templates.TemplateResponse(request, "partials/detail.html", {"item": item})

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="topbar">
+  <h1>🐗 Memehog <span class="count">{{ count }} items</span></h1>
+  <form class="filters" hx-get="/ui/items" hx-target="#grid" hx-swap="innerHTML"
+        hx-trigger="input changed delay:400ms from:find input, change from:find select">
+    <input type="search" name="q" placeholder="Search memes…" autocomplete="off">
+    <select name="type">
+      <option value="">All types</option>
+      <option value="image">Images</option>
+      <option value="video">Videos</option>
+      <option value="animation">GIFs</option>
+    </select>
+    <select name="tag">
+      <option value="">All tags</option>
+      {% for t in tags %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}
+    </select>
+  </form>
+  <button class="btn" onclick="document.getElementById('upload-panel').classList.toggle('open')">＋ Add</button>
+</header>
+
+<section id="upload-panel" class="upload-panel">
+  <form action="/ui/upload" method="post" enctype="multipart/form-data">
+    <label>Upload files
+      <input type="file" name="files" multiple accept="image/*,video/*">
+    </label>
+    <label>…or paste a link (Instagram / TikTok / direct)
+      <input type="url" name="url" placeholder="https://…">
+    </label>
+    <label>Caption (optional)
+      <input type="text" name="caption" placeholder="Description for search">
+    </label>
+    <button class="btn primary" type="submit">Add to library</button>
+  </form>
+</section>
+
+<main id="grid" class="grid" hx-get="/ui/items?page=1" hx-trigger="load" hx-swap="innerHTML">
+  <p class="muted">Loading…</p>
+</main>
+{% endblock %}
