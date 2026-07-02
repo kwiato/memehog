@@ -1,0 +1,36 @@
+<table class="clients-table">
+  <thead>
+    <tr><th>ID</th><th>User</th><th>Status</th><th>Added</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for owner_id in owners %}
+    <tr>
+      <td>{{ owner_id }}</td>
+      <td class="muted">owner</td>
+      <td><span class="status owner">owner</span></td>
+      <td class="muted">.env</td>
+      <td></td>
+    </tr>
+    {% endfor %}
+    {% for c in clients %}
+    <tr>
+      <td>{{ c.telegram_id }}</td>
+      <td>{{ c.username or c.note or '—' }}</td>
+      <td><span class="status {{ c.status }}">{{ c.status }}</span></td>
+      <td class="muted">{{ c.created_at.strftime('%Y-%m-%d') }}</td>
+      <td class="row-actions">
+        {% if c.status == 'pending' %}
+        <button class="btn small" hx-post="/ui/clients/{{ c.telegram_id }}/approve"
+                hx-target="#clients" hx-swap="innerHTML">✅ Approve</button>
+        {% endif %}
+        <button class="btn small danger" hx-post="/ui/clients/{{ c.telegram_id }}/delete"
+                hx-confirm="Remove this client's access?"
+                hx-target="#clients" hx-swap="innerHTML">🗑</button>
+      </td>
+    </tr>
+    {% endfor %}
+    {% if not clients and not owners %}
+    <tr><td colspan="5" class="muted">No clients configured.</td></tr>
+    {% endif %}
+  </tbody>
+</table>

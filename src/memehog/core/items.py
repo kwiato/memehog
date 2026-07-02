@@ -12,6 +12,18 @@ from .library import delete_item_files
 
 PAGE_SIZE = 60
 
+# Items tagged with this are hidden from the default view and only shown
+# in 🔥 mode (never mixed with regular results).
+SPICY_TAG = "spicy"
+
+
+def _spicy_ids():
+    return (
+        select(ItemTag.item_id)
+        .join(Tag, Tag.id == ItemTag.tag_id)
+        .where(Tag.name == SPICY_TAG)
+    )
+
 
 async def list_items(
     session: AsyncSession,
@@ -20,13 +32,14 @@ async def list_items(
     q: str = "",
     tag: str = "",
     media_type: str = "",
+    spicy: bool = False,
     page: int = 1,
     page_size: int = PAGE_SIZE,
 ) -> list[Item]:
     offset = (max(page, 1) - 1) * page_size
 
     if q.strip():
-        # Over-fetch from FTS so post-filters (tag/type) can still fill a page.
+        # Over-fetch from FTS so post-filters (tag/type/spicy) can still fill a page.
         ids = await search.search(
             session, q, limit=page_size * 4 + offset, offset=0
         )
@@ -37,7 +50,7 @@ async def list_items(
             .where(Item.id.in_(ids))
             .options(selectinload(Item.tags))
         )
-        stmt = _apply_filters(stmt, tag=tag, media_type=media_type)
+        stmt = _apply_filters(stmt, tag=tag, media_type=media_type, spicy=spicy)
         rows = (await session.scalars(stmt)).all()
         by_id = {item.id: item for item in rows}
         ordered = [by_id[i] for i in ids if i in by_id]
@@ -50,17 +63,21 @@ async def list_items(
         .limit(page_size)
         .offset(offset)
     )
-    stmt = _apply_filters(stmt, tag=tag, media_type=media_type)
+    stmt = _apply_filters(stmt, tag=tag, media_type=media_type, spicy=spicy)
     return list((await session.scalars(stmt)).all())
 
 
-def _apply_filters(stmt, *, tag: str, media_type: str):
+def _apply_filters(stmt, *, tag: str, media_type: str, spicy: bool):
     if media_type:
         stmt = stmt.where(Item.media_type == media_type)
     if tag:
         stmt = stmt.join(ItemTag, ItemTag.item_id == Item.id).join(
             Tag, Tag.id == ItemTag.tag_id
         ).where(Tag.name == tag)
+    if spicy:
+        stmt = stmt.where(Item.id.in_(_spicy_ids()))
+    else:
+        stmt = stmt.where(Item.id.not_in(_spicy_ids()))
     return stmt
 
 
@@ -74,8 +91,11 @@ async def count_items(session: AsyncSession) -> int:
     return (await session.scalar(select(func.count(Item.id)))) or 0
 
 
-async def all_tags(session: AsyncSession) -> list[Tag]:
-    return list((await session.scalars(select(Tag).order_by(Tag.name))).all())
+async def all_tags(session: AsyncSession, include_spicy: bool = False) -> list[Tag]:
+    stmt = select(Tag).order_by(Tag.name)
+    if not include_spicy:
+        stmt = stmt.where(Tag.name != SPICY_TAG)
+    return list((await session.scalars(stmt)).all())
 
 
 async def delete_item(
@@ -122,6 +142,15 @@ async def remove_tag(
             )
         )
     return await _reindex(session, search, item.id)
+
+
+async def toggle_spicy(
+    session: AsyncSession, search: SearchBackend, item: Item
+) -> Item:
+    names = {t.name for t in item.tags}
+    if SPICY_TAG in names:
+        return await remove_tag(session, search, item, SPICY_TAG)
+    return await add_tag(session, search, item, SPICY_TAG)
 
 
 async def _reindex(session: AsyncSession, search: SearchBackend, item_id: int) -> Item:

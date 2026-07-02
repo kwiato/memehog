@@ -79,6 +79,21 @@ class Embedding(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class TelegramClient(Base):
+    """Additional Telegram users allowed to use the bot (besides the owner
+    IDs from ALLOWED_TELEGRAM_IDS). Rows are created either manually in the
+    web settings (status=approved) or via /register (status=pending)."""
+
+    __tablename__ = "telegram_clients"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(unique=True, index=True)
+    username: Mapped[str | None] = mapped_column(String(128), default=None)
+    note: Mapped[str | None] = mapped_column(String(255), default=None)
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending | approved
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class Job(Base):
     """A queued URL download request."""
 

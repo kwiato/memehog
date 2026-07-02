@@ -7,6 +7,8 @@
 - 🔍 **Full-text search** over captions, tags and filenames (SQLite FTS5) — with the schema ready for OCR text and vector embeddings
 - 🖼️ **Web gallery** — masonry grid, infinite scroll, lightbox, tagging, upload by file or URL
 - 🔌 **REST API** with token auth — the future Chrome extension and Android app will use it
+- 👥 **Multi-user** — friends send `/register` to the bot, you approve them with one tap in Telegram (or in web Settings)
+- 🔥 **Spicy mode** — memes tagged `spicy` are hidden from the default gallery and only appear behind the 🔥 button
 - 🦾 Designed for small ARM boards: one container, one process, SQLite, no external services
 
 ## Quick start
@@ -86,7 +88,9 @@ Updating: *Recreate* the container with *Re-pull image* enabled (or use Watchtow
 - a direct link to an image or video file
 - a photo, video or GIF straight from your phone (the caption becomes searchable text)
 
-**Web UI** — browse, search (`kot w kapeluszu` matches prefixes, so partial words work), filter by type/tag, click a meme for the lightbox where you can tag, download or delete it. The **＋ Add** button uploads files or queues a link for download.
+**Web UI** — browse, search (`kot w kapeluszu` matches prefixes, so partial words work), filter by type/tag, click a meme for the lightbox where you can tag, download, share or delete it (delete hides under the ⋮ menu, file details under the ⌄ arrow). The **＋ Add** button uploads files or queues a link for download. The **🔥 button** switches to spicy-only view; mark a meme as spicy from its ⋮ menu. The **☰ menu** has Settings (manage additional Telegram clients) and About.
+
+**Access for friends** — `ALLOWED_TELEGRAM_IDS` holds the owner account(s). Anyone else who messages the bot gets a hint to send `/register`; the owner receives the request in Telegram with ✅/❌ buttons, and approved users land in Settings → *Additional Telegram clients*, where they can also be added or removed manually.
 
 ## Configuration
 

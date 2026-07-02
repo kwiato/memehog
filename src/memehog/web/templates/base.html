@@ -15,6 +15,22 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') document.getElementById('modal').innerHTML = '';
     });
+
+    async function shareItem(url) {
+      const abs = new URL(url, location.href).href;
+      if (navigator.share) {
+        try { await navigator.share({ url: abs }); return; }
+        catch (e) { if (e.name === 'AbortError') return; }
+      }
+      // No system share sheet (needs HTTPS) — fall back to copying the link.
+      try { await navigator.clipboard.writeText(abs); }
+      catch {
+        const t = document.createElement('textarea');
+        t.value = abs; document.body.appendChild(t); t.select();
+        document.execCommand('copy'); t.remove();
+      }
+      alert('Link copied to clipboard');
+    }
   </script>
 </body>
 </html>

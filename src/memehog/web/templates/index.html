@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <header class="topbar">
-  <h1>🐗 Memehog <span class="count">{{ count }} items</span></h1>
+  <h1><a class="logo" href="/">🐗 Memehog</a> <span class="count">{{ count }} items</span></h1>
   <form class="filters" hx-get="/ui/items" hx-target="#grid" hx-swap="innerHTML"
-        hx-trigger="input changed delay:400ms from:find input, change from:find select">
+        hx-trigger="input changed delay:400ms from:find input[type='search'], change from:find select, change from:find input[name='spicy']">
     <input type="search" name="q" placeholder="Search memes…" autocomplete="off">
     <select name="type">
       <option value="">All types</option>
@@ -15,8 +15,17 @@
       <option value="">All tags</option>
       {% for t in tags %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}
     </select>
+    <input type="hidden" name="spicy" value="0">
   </form>
   <button class="btn" onclick="document.getElementById('upload-panel').classList.toggle('open')">＋ Add</button>
+  <button class="btn spicy-btn" title="Spicy mode" onclick="toggleSpicy(this)">🔥</button>
+  <details class="dropdown">
+    <summary class="btn" title="Menu">☰</summary>
+    <nav class="dropdown-menu">
+      <a href="/settings">⚙️ Settings</a>
+      <a href="/about">ℹ️ About</a>
+    </nav>
+  </details>
 </header>
 
 <section id="upload-panel" class="upload-panel">
@@ -37,4 +46,14 @@
 <main id="grid" class="grid" hx-get="/ui/items?page=1" hx-trigger="load" hx-swap="innerHTML">
   <p class="muted">Loading…</p>
 </main>
+
+<script>
+  function toggleSpicy(btn) {
+    const input = document.querySelector('.filters input[name="spicy"]');
+    input.value = input.value === '1' ? '0' : '1';
+    btn.classList.toggle('active', input.value === '1');
+    document.body.classList.toggle('spicy-mode', input.value === '1');
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+</script>
 {% endblock %}

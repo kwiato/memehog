@@ -8,7 +8,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .. import __version__
 from ..config import Settings
+from ..core import clients as clients_svc
 from ..core import items as items_svc
 from ..core.library import ingest_file
 from ..core.queue import DownloadQueue
@@ -28,18 +30,44 @@ async def index(request: Request, session: AsyncSession = Depends(get_session)):
     )
 
 
+@router.get("/settings", response_class=HTMLResponse)
+async def settings_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    clients = await clients_svc.list_clients(session)
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {"clients": clients, "owners": sorted(settings.allowed_ids)},
+    )
+
+
+@router.get("/about", response_class=HTMLResponse)
+async def about_page(
+    request: Request, session: AsyncSession = Depends(get_session)
+):
+    count = await items_svc.count_items(session)
+    return templates.TemplateResponse(
+        request, "about.html", {"version": __version__, "count": count}
+    )
+
+
 @router.get("/ui/items", response_class=HTMLResponse)
 async def grid(
     request: Request,
     q: str = "",
     tag: str = "",
     type: str = "",
+    spicy: str = "0",
     page: int = 1,
     session: AsyncSession = Depends(get_session),
     search: SearchBackend = Depends(get_search),
 ):
     items = await items_svc.list_items(
-        session, search, q=q, tag=tag, media_type=type, page=page
+        session, search, q=q, tag=tag, media_type=type,
+        spicy=spicy == "1", page=page,
     )
     has_more = len(items) == items_svc.PAGE_SIZE
     return templates.TemplateResponse(
@@ -52,6 +80,7 @@ async def grid(
             "q": q,
             "tag": tag,
             "type": type,
+            "spicy": spicy,
         },
     )
 
@@ -109,6 +138,20 @@ async def delete(
     return Response(status_code=200, headers={"HX-Refresh": "true"})
 
 
+@router.post("/ui/items/{item_id}/spicy", response_class=HTMLResponse)
+async def toggle_spicy(
+    request: Request,
+    item_id: int,
+    session: AsyncSession = Depends(get_session),
+    search: SearchBackend = Depends(get_search),
+):
+    item = await items_svc.get_item(session, item_id)
+    if item is None:
+        raise HTTPException(404, "Item not found")
+    item = await items_svc.toggle_spicy(session, search, item)
+    return templates.TemplateResponse(request, "partials/detail.html", {"item": item})
+
+
 @router.post("/ui/items/{item_id}/tags", response_class=HTMLResponse)
 async def add_tag(
     request: Request,
@@ -137,3 +180,51 @@ async def remove_tag(
         raise HTTPException(404, "Item not found")
     item = await items_svc.remove_tag(session, search, item, name)
     return templates.TemplateResponse(request, "partials/detail.html", {"item": item})
+
+
+# --- Telegram clients management (settings page) -----------------------------
+
+
+async def _clients_partial(request: Request, session: AsyncSession, settings: Settings):
+    clients = await clients_svc.list_clients(session)
+    return templates.TemplateResponse(
+        request,
+        "partials/clients.html",
+        {"clients": clients, "owners": sorted(settings.allowed_ids)},
+    )
+
+
+@router.post("/ui/clients", response_class=HTMLResponse)
+async def add_client(
+    request: Request,
+    telegram_id: int = Form(...),
+    note: str = Form(""),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    await clients_svc.add_client(
+        session, telegram_id, note=note or None, status="approved"
+    )
+    return await _clients_partial(request, session, settings)
+
+
+@router.post("/ui/clients/{telegram_id}/approve", response_class=HTMLResponse)
+async def approve_client(
+    request: Request,
+    telegram_id: int,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    await clients_svc.approve_client(session, telegram_id)
+    return await _clients_partial(request, session, settings)
+
+
+@router.post("/ui/clients/{telegram_id}/delete", response_class=HTMLResponse)
+async def delete_client(
+    request: Request,
+    telegram_id: int,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    await clients_svc.remove_client(session, telegram_id)
+    return await _clients_partial(request, session, settings)

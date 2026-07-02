@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Settings
+from ..core import clients as clients_svc
 from ..core import items as items_svc
 from ..core.library import ingest_file
 from ..core.queue import DownloadQueue
@@ -60,13 +61,14 @@ async def list_items(
     q: str = "",
     tag: str = "",
     type: str = "",
+    spicy: bool = False,
     page: int = 1,
     page_size: int = items_svc.PAGE_SIZE,
     session: AsyncSession = Depends(get_session),
     search: SearchBackend = Depends(get_search),
 ) -> dict:
     items = await items_svc.list_items(
-        session, search, q=q, tag=tag, media_type=type,
+        session, search, q=q, tag=tag, media_type=type, spicy=spicy,
         page=page, page_size=min(page_size, 200),
     )
     return {"page": page, "items": [item_to_dict(i) for i in items]}
@@ -146,6 +148,45 @@ async def remove_tag(
         raise HTTPException(404, "Item not found")
     item = await items_svc.remove_tag(session, search, item, name)
     return item_to_dict(item)
+
+
+@router.get("/clients")
+async def list_clients(session: AsyncSession = Depends(get_session)) -> dict:
+    clients = await clients_svc.list_clients(session)
+    return {
+        "clients": [
+            {
+                "telegram_id": c.telegram_id,
+                "username": c.username,
+                "note": c.note,
+                "status": c.status,
+                "created_at": c.created_at.isoformat(),
+            }
+            for c in clients
+        ]
+    }
+
+
+class ClientBody(BaseModel):
+    telegram_id: int
+    note: str | None = None
+
+
+@router.post("/clients", status_code=201)
+async def add_client(
+    body: ClientBody, session: AsyncSession = Depends(get_session)
+) -> dict:
+    client = await clients_svc.add_client(
+        session, body.telegram_id, note=body.note, status="approved"
+    )
+    return {"telegram_id": client.telegram_id, "status": client.status}
+
+
+@router.delete("/clients/{telegram_id}", status_code=204)
+async def delete_client(
+    telegram_id: int, session: AsyncSession = Depends(get_session)
+) -> None:
+    await clients_svc.remove_client(session, telegram_id)
 
 
 class JobBody(BaseModel):
