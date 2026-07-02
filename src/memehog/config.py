@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     allowed_telegram_ids: str = ""
     api_token: str = "change-me"
     host: str = "0.0.0.0"
-    port: int = 8080
+    port: int = 2137
     data_dir: Path = Path("data")
     cookies_file: str = ""
     scan_cron: str = "0 3 * * *"

@@ -15,13 +15,13 @@ services:
       ALLOWED_TELEGRAM_IDS: ${ALLOWED_TELEGRAM_IDS:-}
       API_TOKEN: ${API_TOKEN:?set API_TOKEN (e.g. openssl rand -hex 24)}
       HOST: 0.0.0.0
-      PORT: ${PORT:-8080}
+      PORT: ${PORT:-2137}
       DATA_DIR: /data
       COOKIES_FILE: ${COOKIES_FILE:-}
       SCAN_CRON: ${SCAN_CRON:-0 3 * * *}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
-      - "${PORT:-8080}:${PORT:-8080}"
+      - "${PORT:-2137}:${PORT:-2137}"
     volumes:
       # In Portainer set HOST_DATA_DIR to an ABSOLUTE path (e.g. /srv/memehog)
       # — the relative default only makes sense for git-clone + install.sh.

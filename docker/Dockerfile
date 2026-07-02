@@ -13,9 +13,9 @@ RUN pip install --no-cache-dir .
 
 ENV DATA_DIR=/data
 VOLUME /data
-EXPOSE 8080
+EXPOSE 2137
 
 HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \
-    CMD python -c "import urllib.request,os; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"8080\")}/api/v1/health')" || exit 1
+    CMD python -c "import urllib.request,os; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"2137\")}/api/v1/health')" || exit 1
 
 CMD ["python", "-m", "memehog"]

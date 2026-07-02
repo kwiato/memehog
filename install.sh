@@ -52,8 +52,8 @@ read -r -p "   Data directory [./data]: " HOST_DATA_DIR
 HOST_DATA_DIR=${HOST_DATA_DIR:-./data}
 
 echo
-read -r -p "4) Web UI port [8080]: " PORT
-PORT=${PORT:-8080}
+read -r -p "4) Web UI port [2137]: " PORT
+PORT=${PORT:-2137}
 
 # --- generate ----------------------------------------------------------------
 if command -v openssl >/dev/null 2>&1; then
