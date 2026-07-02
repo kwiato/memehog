@@ -9,6 +9,8 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func, select
 
 from .config import Settings
+from .core.appsettings import NIGHTLY_JOB_ID, SCAN_CRON_KEY, get_setting
+from .core.convert import run_conversions
 from .core.queue import DownloadQueue
 from .db import create_engine, init_db
 from .db.models import Item
@@ -18,17 +20,17 @@ from .web import create_app
 log = logging.getLogger("memehog")
 
 
-async def nightly_index(session_factory) -> None:
-    """Placeholder for the future OCR / embedding indexer.
-
-    Items are ingested with index_status='pending'; this job will pick them
-    up, run Tesseract (and later an embedding backend) and update items_fts.
-    """
+async def nightly_maintenance(session_factory, settings, search) -> None:
+    """Nightly batch: transcode webp/webm, later also OCR/embeddings."""
+    converted = await run_conversions(session_factory, settings, search)
     async with session_factory() as session:
         pending = await session.scalar(
             select(func.count(Item.id)).where(Item.index_status == "pending")
         )
-    log.info("Nightly index: %s item(s) awaiting OCR (indexer not implemented yet)", pending)
+    log.info(
+        "Nightly maintenance done: %d file(s) converted, %s item(s) awaiting OCR "
+        "(indexer not implemented yet)", converted, pending,
+    )
 
 
 async def run() -> None:
@@ -45,7 +47,21 @@ async def run() -> None:
     queue = DownloadQueue(session_factory, settings, search)
     await queue.restore_pending()
 
-    app = create_app(settings, session_factory, search, queue)
+    # The web UI can override the cron from .env (stored in app_settings).
+    async with session_factory() as session:
+        scan_cron = await get_setting(session, SCAN_CRON_KEY, settings.scan_cron)
+
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(
+        nightly_maintenance,
+        CronTrigger.from_crontab(scan_cron),
+        id=NIGHTLY_JOB_ID,
+        args=[session_factory, settings, search],
+    )
+    scheduler.start()
+    log.info("Nightly maintenance scheduled: %s", scan_cron)
+
+    app = create_app(settings, session_factory, search, queue, scheduler=scheduler)
     server = uvicorn.Server(
         uvicorn.Config(
             app,
@@ -54,14 +70,6 @@ async def run() -> None:
             log_level=settings.log_level.lower(),
         )
     )
-
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(
-        nightly_index,
-        CronTrigger.from_crontab(settings.scan_cron),
-        args=[session_factory],
-    )
-    scheduler.start()
 
     tasks = [
         asyncio.create_task(server.serve(), name="web"),

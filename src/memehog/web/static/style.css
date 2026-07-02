@@ -218,11 +218,18 @@ body.spicy-mode .topbar { border-bottom-color: var(--accent); }
 .meta-details p { text-align: left; font-size: 13px; margin: 8px 0 0; word-break: break-all; }
 .meta-details a { color: var(--accent); }
 
-/* --- settings / about pages --- */
-.page { max-width: 760px; margin: 0 auto; padding: 24px 20px; }
-.page h2 { margin-top: 0; }
-.page code { background: var(--bg3); padding: 1px 6px; border-radius: 4px; }
-.page a { color: var(--accent); }
+/* --- settings / about modals --- */
+.modal-box.panel {
+  width: min(680px, 94vw);
+  padding: 22px 26px;
+  overflow-y: auto;
+}
+.modal-box.panel h2 { margin: 0 0 12px; }
+.modal-box.panel h3 { margin: 18px 0 6px; }
+.modal-box.panel code { background: var(--bg3); padding: 1px 6px; border-radius: 4px; }
+.modal-box.panel a { color: var(--accent); }
+.scan-hour { display: flex; align-items: center; gap: 10px; }
+.scan-hour label { display: flex; align-items: center; gap: 8px; }
 .clients-table { width: 100%; border-collapse: collapse; margin: 14px 0; }
 .clients-table th, .clients-table td {
   text-align: left;

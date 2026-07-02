@@ -1,0 +1,45 @@
+<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
+  <div class="modal-box panel">
+    <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
+    <h2>⚙️ Settings</h2>
+
+    <section>
+      <h3>Additional Telegram clients</h3>
+      <p class="muted">
+        Users listed here can talk to the bot besides the owner accounts from
+        <code>ALLOWED_TELEGRAM_IDS</code>. Anyone can request access by sending
+        <code>/register</code> to the bot — requests show up below and as
+        approve/reject buttons in the owner's Telegram chat. IDs come from
+        <a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a>.
+      </p>
+
+      <div id="clients">
+        {% include "partials/clients.html" %}
+      </div>
+
+      <form class="add-client" hx-post="/ui/clients" hx-target="#clients" hx-swap="innerHTML">
+        <input type="number" name="telegram_id" placeholder="Telegram ID" required>
+        <input type="text" name="note" placeholder="Note (e.g. name)">
+        <button class="btn primary" type="submit">Add client</button>
+      </form>
+    </section>
+
+    <section>
+      <h3>Nightly maintenance</h3>
+      <p class="muted">
+        Converts <code>webp → jpg</code> and <code>webm → mp4</code> (many apps
+        can't handle those formats) and will run the OCR indexer in the future.
+      </p>
+      <form class="scan-hour" hx-post="/ui/settings/scan-hour" hx-target="#modal" hx-swap="innerHTML">
+        <label>Runs daily at
+          <select name="hour">
+            {% for h in range(24) %}
+            <option value="{{ h }}" {{ 'selected' if h == scan_hour else '' }}>{{ '%02d' % h }}:00</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button class="btn primary" type="submit">Save</button>
+      </form>
+    </section>
+  </div>
+</div>

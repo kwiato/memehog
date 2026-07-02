@@ -11,7 +11,14 @@ COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 RUN pip install --no-cache-dir .
 
-ENV DATA_DIR=/data
+# Run as a non-root user (uid 1000 = the default user on Raspberry Pi OS,
+# so files written to the bind-mounted data dir belong to "pi").
+# The host data dir must be writable by uid 1000: chown -R 1000:1000 <dir>
+RUN useradd --uid 1000 --create-home memehog
+USER memehog
+
+ENV DATA_DIR=/data \
+    HOME=/home/memehog
 VOLUME /data
 EXPOSE 2137
 

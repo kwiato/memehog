@@ -79,6 +79,15 @@ class Embedding(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class AppSetting(Base):
+    """Runtime-editable settings (web UI) that override .env defaults."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
+
+
 class TelegramClient(Base):
     """Additional Telegram users allowed to use the bot (besides the owner
     IDs from ALLOWED_TELEGRAM_IDS). Rows are created either manually in the

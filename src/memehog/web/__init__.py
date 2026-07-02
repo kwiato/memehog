@@ -17,6 +17,7 @@ def create_app(
     session_factory: async_sessionmaker[AsyncSession],
     search: SearchBackend,
     queue: DownloadQueue,
+    scheduler=None,
 ) -> FastAPI:
     settings.ensure_dirs()
     app = FastAPI(title="Memehog", docs_url="/api/docs", openapi_url="/api/openapi.json")
@@ -24,6 +25,7 @@ def create_app(
     app.state.session_factory = session_factory
     app.state.search = search
     app.state.queue = queue
+    app.state.scheduler = scheduler
 
     app.include_router(api.public_router)
     app.include_router(api.router)

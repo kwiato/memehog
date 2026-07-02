@@ -8,6 +8,12 @@ services:
       dockerfile: docker/Dockerfile
     container_name: memehog
     restart: unless-stopped
+    # Runs as uid 1000 (non-root); the data dir on the host must be
+    # writable by that uid: sudo chown -R 1000:1000 <HOST_DATA_DIR>
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       # Values come from .env (docker compose CLI) or from stack env vars
       # (Portainer). No env_file — a git-deployed stack has no .env file.

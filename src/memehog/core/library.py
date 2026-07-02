@@ -41,7 +41,7 @@ async def ingest_file(
     info = await asyncio.to_thread(probe, src_path)
     now = utcnow()
     ext = src_path.suffix.lower() or ".bin"
-    rel_path = f"{now:%Y/%m}/{sha[:16]}{ext}"
+    rel_path = f"{now:%Y}/{sha[:16]}{ext}"
     dest = settings.library_dir / rel_path
     dest.parent.mkdir(parents=True, exist_ok=True)
     await asyncio.to_thread(shutil.move, str(src_path), str(dest))

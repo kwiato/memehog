@@ -10,7 +10,16 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from .models import Base, Embedding, Item, ItemTag, Job, Tag  # noqa: F401
+from .models import (  # noqa: F401
+    AppSetting,
+    Base,
+    Embedding,
+    Item,
+    ItemTag,
+    Job,
+    Tag,
+    TelegramClient,
+)
 
 # Regular FTS5 table (not contentless) so per-row DELETE works everywhere;
 # the indexed text is tiny compared to the media files.

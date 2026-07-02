@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import __version__
 from ..config import Settings
+from ..core import appsettings
 from ..core import clients as clients_svc
 from ..core import items as items_svc
 from ..core.library import ingest_file
@@ -30,27 +31,68 @@ async def index(request: Request, session: AsyncSession = Depends(get_session)):
     )
 
 
-@router.get("/settings", response_class=HTMLResponse)
-async def settings_page(
+async def _settings_modal(
+    request: Request, session: AsyncSession, settings: Settings
+):
+    clients = await clients_svc.list_clients(session)
+    cron = await appsettings.get_setting(
+        session, appsettings.SCAN_CRON_KEY, settings.scan_cron
+    )
+    return templates.TemplateResponse(
+        request,
+        "partials/settings_modal.html",
+        {
+            "clients": clients,
+            "owners": sorted(settings.allowed_ids),
+            "scan_hour": _cron_hour(cron),
+        },
+    )
+
+
+def _cron_hour(cron: str) -> int:
+    parts = cron.split()
+    try:
+        return int(parts[1])
+    except (IndexError, ValueError):
+        return 3
+
+
+@router.get("/ui/settings", response_class=HTMLResponse)
+async def settings_modal(
     request: Request,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
-    clients = await clients_svc.list_clients(session)
-    return templates.TemplateResponse(
-        request,
-        "settings.html",
-        {"clients": clients, "owners": sorted(settings.allowed_ids)},
-    )
+    return await _settings_modal(request, session, settings)
 
 
-@router.get("/about", response_class=HTMLResponse)
-async def about_page(
+@router.post("/ui/settings/scan-hour", response_class=HTMLResponse)
+async def set_scan_hour(
+    request: Request,
+    hour: int = Form(...),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    hour = max(0, min(23, hour))
+    cron = f"0 {hour} * * *"
+    await appsettings.set_setting(session, appsettings.SCAN_CRON_KEY, cron)
+    scheduler = request.app.state.scheduler
+    if scheduler is not None:
+        from apscheduler.triggers.cron import CronTrigger
+
+        scheduler.reschedule_job(
+            appsettings.NIGHTLY_JOB_ID, trigger=CronTrigger.from_crontab(cron)
+        )
+    return await _settings_modal(request, session, settings)
+
+
+@router.get("/ui/about", response_class=HTMLResponse)
+async def about_modal(
     request: Request, session: AsyncSession = Depends(get_session)
 ):
     count = await items_svc.count_items(session)
     return templates.TemplateResponse(
-        request, "about.html", {"version": __version__, "count": count}
+        request, "partials/about_modal.html", {"version": __version__, "count": count}
     )
 
 
