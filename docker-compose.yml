@@ -5,10 +5,21 @@ services:
       dockerfile: docker/Dockerfile
     container_name: memehog
     restart: unless-stopped
-    env_file: .env
     environment:
+      # Values come from .env (docker compose CLI) or from stack env vars
+      # (Portainer). No env_file — a git-deployed stack has no .env file.
+      BOT_TOKEN: ${BOT_TOKEN:-}
+      ALLOWED_TELEGRAM_IDS: ${ALLOWED_TELEGRAM_IDS:-}
+      API_TOKEN: ${API_TOKEN:?set API_TOKEN (e.g. openssl rand -hex 24)}
+      HOST: 0.0.0.0
+      PORT: ${PORT:-8080}
       DATA_DIR: /data
+      COOKIES_FILE: ${COOKIES_FILE:-}
+      SCAN_CRON: ${SCAN_CRON:-0 3 * * *}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "${PORT:-8080}:${PORT:-8080}"
     volumes:
+      # In Portainer set HOST_DATA_DIR to an ABSOLUTE path (e.g. /srv/memehog)
+      # — the relative default only makes sense for git-clone + install.sh.
       - ${HOST_DATA_DIR:-./data}:/data

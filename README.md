@@ -34,6 +34,24 @@ It generates an `API_TOKEN`, writes `.env` and starts the stack. Open `http://<p
 git pull && docker compose up -d --build
 ```
 
+### Deploy with Portainer
+
+No shell needed — deploy straight from this repository:
+
+1. **Stacks → Add stack → Repository**
+2. Repository URL: `https://github.com/kwiato/memehog`, reference: `refs/heads/main`, compose path: `docker-compose.yml`
+3. Add **environment variables** (this replaces the `install.sh` wizard):
+
+   | Variable | Value |
+   |---|---|
+   | `API_TOKEN` | required — generate one: `openssl rand -hex 24` |
+   | `HOST_DATA_DIR` | **absolute** path on the host, e.g. `/srv/memehog` (don't leave the relative default — a git stack's working dir is ephemeral) |
+   | `BOT_TOKEN` | token from @BotFather (optional) |
+   | `ALLOWED_TELEGRAM_IDS` | your Telegram ID(s), comma-separated |
+   | `PORT` | optional, default `8080` |
+
+4. Deploy. Updates: enable *GitOps updates* (polling) in the stack, or hit *Pull and redeploy* after a push.
+
 ## Usage
 
 **Telegram bot** — send it any of:
