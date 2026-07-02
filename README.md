@@ -52,6 +52,31 @@ No shell needed — deploy straight from this repository:
 
 4. Deploy. Updates: enable *GitOps updates* (polling) in the stack, or hit *Pull and redeploy* after a push.
 
+Prefer the **Web editor** instead? CI publishes a multi-arch image to GHCR
+(`ghcr.io/kwiato/memehog:latest`, ARM64 + x86_64), so you can paste this and
+set the same environment variables as above:
+
+```yaml
+services:
+  memehog:
+    image: ghcr.io/kwiato/memehog:latest
+    container_name: memehog
+    restart: unless-stopped
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN:-}
+      ALLOWED_TELEGRAM_IDS: ${ALLOWED_TELEGRAM_IDS:-}
+      API_TOKEN: ${API_TOKEN:?set API_TOKEN}
+      PORT: ${PORT:-8080}
+      DATA_DIR: /data
+      COOKIES_FILE: ${COOKIES_FILE:-}
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    volumes:
+      - ${HOST_DATA_DIR:?set HOST_DATA_DIR, e.g. /srv/memehog}:/data
+```
+
+Updating: *Recreate* the container with *Re-pull image* enabled (or use Watchtower).
+
 ## Usage
 
 **Telegram bot** — send it any of:
