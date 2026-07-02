@@ -89,12 +89,30 @@ input:focus, select:focus { outline: 1px solid var(--accent); }
   50% { transform: scale(0.9); opacity: 0.6; }
 }
 
-.upload-modal { display: none; }
-.upload-modal.open { display: flex; }
+/* double class so this outranks .modal-backdrop { display: flex } */
+.modal-backdrop.upload-modal { display: none; }
+.modal-backdrop.upload-modal.open { display: flex; }
 .upload-modal form { display: flex; flex-direction: column; gap: 14px; }
 .upload-modal label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
-.spicy-flag { display: none; font-size: 13px; color: var(--accent); font-weight: normal; }
-body.spicy-mode .spicy-flag { display: inline; }
+
+/* animated collapsible (caption row appears once a file/link is picked) */
+.collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-top: -14px; /* cancel the form gap while collapsed */
+  transition: grid-template-rows 0.25s ease, margin-top 0.25s ease, opacity 0.25s ease;
+}
+.collapse.open { grid-template-rows: 1fr; opacity: 1; margin-top: 0; }
+.collapse-inner {
+  overflow: hidden;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 2px; /* room for input focus outlines under overflow:hidden */
+}
+.collapse-inner label { flex: 1; }
+.collapse:not(.open) .collapse-inner { visibility: hidden; }
 
 .dropzone {
   border: 2px dashed var(--bg3);

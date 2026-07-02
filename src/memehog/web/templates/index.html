@@ -42,7 +42,7 @@
 <div id="upload-modal" class="modal-backdrop upload-modal" onclick="if (event.target === this) closeUpload()">
   <div class="modal-box panel">
     <button class="close" onclick="closeUpload()">✕</button>
-    <h2>Add memes <span class="spicy-flag">🔥 straight to the spicy stash</span></h2>
+    <h2>Add memes</h2>
     <form id="upload-form" action="/ui/upload" method="post" enctype="multipart/form-data">
       <label class="dropzone">
         <input type="file" name="files" multiple accept="image/*,video/*">
@@ -51,9 +51,15 @@
       <label>Paste a link (Instagram / TikTok / direct)
         <input type="url" name="url" placeholder="https://…">
       </label>
-      <label>Caption (optional)
-        <input type="text" name="caption" placeholder="Description for search">
-      </label>
+      <div id="caption-row" class="collapse">
+        <div class="collapse-inner">
+          <label>Caption (optional)
+            <input type="text" name="caption" placeholder="Description for search">
+          </label>
+          <button type="button" id="upload-spicy-btn" class="btn spicy-btn"
+                  title="Upload as spicy" onclick="this.classList.toggle('active')">🔥</button>
+        </div>
+      </div>
       <input type="hidden" name="spicy" value="0">
       <button class="btn primary" type="submit">Add to library</button>
     </form>
@@ -85,14 +91,31 @@
     spicyInput.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  function openUpload() { document.getElementById('upload-modal').classList.add('open'); }
+  const uploadForm = document.getElementById('upload-form');
+  const fileInput = uploadForm.querySelector('input[name="files"]');
+  const urlInput = uploadForm.querySelector('input[name="url"]');
+  const captionRow = document.getElementById('caption-row');
+  const uploadSpicyBtn = document.getElementById('upload-spicy-btn');
+
+  function openUpload() {
+    // Default the per-upload 🔥 toggle to the current browsing mode.
+    uploadSpicyBtn.classList.toggle('active', spicyOn());
+    document.getElementById('upload-modal').classList.add('open');
+  }
   function closeUpload() { document.getElementById('upload-modal').classList.remove('open'); }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeUpload();
   });
 
-  async function uploadFormData(fd) {
-    fd.set('spicy', spicyOn() ? '1' : '0');
+  function updateCaptionRow() {
+    const filled = fileInput.files.length > 0 || urlInput.value.trim() !== '';
+    captionRow.classList.toggle('open', filled);
+  }
+  fileInput.addEventListener('change', updateCaptionRow);
+  urlInput.addEventListener('input', updateCaptionRow);
+
+  async function uploadFormData(fd, spicy = spicyOn()) {
+    fd.set('spicy', spicy ? '1' : '0');
     const fab = document.querySelector('.fab');
     fab.classList.add('busy');
     try {
@@ -110,10 +133,13 @@
     }
   }
 
-  document.getElementById('upload-form').addEventListener('submit', (e) => {
+  uploadForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    uploadFormData(new FormData(e.target));
-    e.target.reset();
+    uploadFormData(
+      new FormData(uploadForm), uploadSpicyBtn.classList.contains('active')
+    );
+    uploadForm.reset();
+    updateCaptionRow();
     closeUpload();
   });
 
