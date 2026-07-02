@@ -1,8 +1,8 @@
 services:
   memehog:
-    # Prebuilt multi-arch image from CI; `build:` is the fallback when the
-    # image can't be pulled (local clone, forks).
-    image: ghcr.io/kwiato/memehog:latest
+    # Prebuilt multi-arch image from CI (also mirrored to ghcr.io/kwiato/memehog);
+    # `build:` is the fallback when the image can't be pulled (local clone, forks).
+    image: hexdesign/memehog:latest
     build:
       context: .
       dockerfile: docker/Dockerfile

@@ -52,14 +52,14 @@ No shell needed — deploy straight from this repository:
 
 4. Deploy. Updates: enable *GitOps updates* (polling) in the stack, or hit *Pull and redeploy* after a push.
 
-Prefer the **Web editor** instead? CI publishes a multi-arch image to GHCR
-(`ghcr.io/kwiato/memehog:latest`, ARM64 + x86_64), so you can paste this and
-set the same environment variables as above:
+Prefer the **Web editor** instead? CI publishes a multi-arch image (ARM64 +
+x86_64) to Docker Hub (`hexdesign/memehog`) and GHCR (`ghcr.io/kwiato/memehog`),
+so you can paste this and set the same environment variables as above:
 
 ```yaml
 services:
   memehog:
-    image: ghcr.io/kwiato/memehog:latest
+    image: hexdesign/memehog:latest
     container_name: memehog
     restart: unless-stopped
     environment:
