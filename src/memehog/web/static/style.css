@@ -187,18 +187,18 @@ body.spicy-mode .drop-spicy { display: block; }
    vertical gap comes from the card's margin-bottom. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   grid-auto-rows: 8px;
   row-gap: 0;
-  column-gap: 16px;
-  padding: 16px 20px;
+  column-gap: 32px;
+  padding: 24px 32px;
   max-width: 2000px;
   margin: 0 auto;
 }
 
 .card {
   position: relative;
-  margin-bottom: 16px;
+  margin-bottom: 32px;
   border-radius: var(--radius);
   overflow: hidden;
   background: var(--bg2);
