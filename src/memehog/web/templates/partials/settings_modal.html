@@ -82,9 +82,14 @@
           <button class="btn" type="button" hx-post="/ui/settings/vlm/test"
                   hx-include="closest form" hx-target="#vlm-test-result"
                   hx-swap="innerHTML">🧪 Test connection</button>
+          <button class="btn" type="button" hx-post="/ui/settings/vlm/run"
+                  hx-target="#vlm-status" hx-swap="outerHTML"
+                  hx-confirm="Run the indexer on all pending memes now? (Uses saved settings — hit Save first if you changed anything.)"
+                  >▶ Run indexer now</button>
           <span id="vlm-test-result"></span>
         </div>
       </form>
+      {% include "partials/vlm_status.html" %}
       <script>
         window.VLM_PRESETS = {
           gemini: {

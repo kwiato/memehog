@@ -13,6 +13,8 @@ import base64
 import json
 import logging
 import re
+from collections import deque
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -45,6 +47,35 @@ _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
 # Stop the run after this many failures in a row (bad config / provider down);
 # isolated bad items just stay pending and are retried next night.
 MAX_CONSECUTIVE_FAILURES = 3
+
+
+class IndexerStatus:
+    """In-memory progress of the current/last indexer run.
+
+    One process, one indexer — a module-level singleton is enough. The web UI
+    polls it to show a live log while a run is in progress.
+    """
+
+    def __init__(self) -> None:
+        self.running = False
+        self.total = 0
+        self.processed = 0
+        self.indexed = 0
+        self.log: deque[str] = deque(maxlen=30)
+
+    def start(self) -> None:
+        self.running = True
+        self.total = 0
+        self.processed = 0
+        self.indexed = 0
+        self.log.clear()
+
+    def note(self, message: str) -> None:
+        self.log.append(f"{datetime.now():%H:%M:%S}  {message}")
+        log.debug("indexer: %s", message)
+
+
+STATUS = IndexerStatus()
 
 
 def _parse_response(content: str) -> tuple[str, str]:
@@ -120,6 +151,7 @@ async def _index_one(
     jpeg = await asyncio.to_thread(_load_thumb_jpeg, settings, item)
     if jpeg is None:
         log.warning("Item %s: no readable media for VLM, marking failed", item.id)
+        STATUS.note(f"Item {item.id}: no readable media — marked failed")
         item.index_status = "failed"
         await session.commit()
         return False
@@ -132,6 +164,7 @@ async def _index_one(
     await session.commit()
     log.info("Indexed item %s (%d chars OCR, %d chars description)",
              item.id, len(ocr), len(description))
+    STATUS.note(f"Item {item.id}: ok — „{(description or ocr)[:70]}”")
     return True
 
 
@@ -146,61 +179,88 @@ async def run_indexing(
 
     `transport` is injectable for tests.
     """
+    if STATUS.running:
+        log.info("VLM indexer already running — skipping this trigger")
+        return 0
+    STATUS.start()
+
     indexed = 0
     consecutive_failures = 0
+    try:
+        async with session_factory() as session:
+            # Settings saved in the web UI override the .env values.
+            settings = await effective_settings(session, settings)
+            if not settings.vlm_enabled:
+                log.debug(
+                    "VLM indexer not configured (VLM_BASE_URL / VLM_MODEL) — skipping"
+                )
+                STATUS.note("Not configured — set the endpoint and model first.")
+                return 0
+            delay = 60.0 / settings.vlm_rpm if settings.vlm_rpm > 0 else 0.0
 
-    async with session_factory() as session:
-        # Settings saved in the web UI override the .env values.
-        settings = await effective_settings(session, settings)
-        if not settings.vlm_enabled:
-            log.debug(
-                "VLM indexer not configured (VLM_BASE_URL / VLM_MODEL) — skipping"
+            stmt = (
+                select(Item)
+                .where(Item.index_status == "pending")
+                .options(selectinload(Item.tags))
+                .order_by(Item.id)
+                .limit(settings.vlm_max_per_run)
             )
-            return 0
-        delay = 60.0 / settings.vlm_rpm if settings.vlm_rpm > 0 else 0.0
+            if not settings.vlm_index_spicy:
+                stmt = stmt.where(Item.filename.not_like("spicy/%"))
+            items = (await session.scalars(stmt)).all()
+            if not items:
+                STATUS.note("Nothing to do — no pending items.")
+                return 0
+            STATUS.total = len(items)
+            log.info("VLM indexer: %d item(s) to process (model %s)",
+                     len(items), settings.vlm_model)
+            STATUS.note(
+                f"Starting: {len(items)} item(s), model {settings.vlm_model}"
+            )
 
-        stmt = (
-            select(Item)
-            .where(Item.index_status == "pending")
-            .options(selectinload(Item.tags))
-            .order_by(Item.id)
-            .limit(settings.vlm_max_per_run)
-        )
-        if not settings.vlm_index_spicy:
-            stmt = stmt.where(Item.filename.not_like("spicy/%"))
-        items = (await session.scalars(stmt)).all()
-        if not items:
-            return 0
-        log.info("VLM indexer: %d item(s) to process (model %s)",
-                 len(items), settings.vlm_model)
-
-        async with httpx.AsyncClient(timeout=120, transport=transport) as client:
-            for i, item in enumerate(items):
-                try:
-                    if await _index_one(session, settings, search, client, item):
-                        indexed += 1
-                        consecutive_failures = 0
-                except httpx.HTTPStatusError as exc:
-                    # Auth/model errors and exhausted quotas affect the whole
-                    # run — stop and leave the rest pending for next night.
-                    log.warning(
-                        "VLM API returned %s — stopping this run: %s",
-                        exc.response.status_code, exc.response.text[:300],
-                    )
-                    await session.rollback()
-                    break
-                except Exception:  # noqa: BLE001 - keep the batch alive
-                    log.exception("VLM indexing failed for item %s", item.id)
-                    await session.rollback()
-                    consecutive_failures += 1
-                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+            async with httpx.AsyncClient(timeout=120, transport=transport) as client:
+                for i, item in enumerate(items):
+                    try:
+                        if await _index_one(session, settings, search, client, item):
+                            indexed += 1
+                            consecutive_failures = 0
+                    except httpx.HTTPStatusError as exc:
+                        # Auth/model errors and exhausted quotas affect the whole
+                        # run — stop and leave the rest pending for next night.
                         log.warning(
-                            "%d consecutive failures — stopping this run",
-                            consecutive_failures,
+                            "VLM API returned %s — stopping this run: %s",
+                            exc.response.status_code, exc.response.text[:300],
                         )
+                        STATUS.note(
+                            f"API error HTTP {exc.response.status_code}: "
+                            f"{exc.response.text[:120]} — run stopped, the rest "
+                            f"stays pending"
+                        )
+                        await session.rollback()
                         break
-                if delay and i < len(items) - 1:
-                    await asyncio.sleep(delay)
+                    except Exception as exc:  # noqa: BLE001 - keep the batch alive
+                        log.exception("VLM indexing failed for item %s", item.id)
+                        STATUS.note(f"Item {item.id}: error — {str(exc)[:120]}")
+                        await session.rollback()
+                        consecutive_failures += 1
+                        if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                            log.warning(
+                                "%d consecutive failures — stopping this run",
+                                consecutive_failures,
+                            )
+                            STATUS.note(
+                                f"{consecutive_failures} consecutive failures "
+                                f"— run stopped"
+                            )
+                            break
+                    finally:
+                        STATUS.processed = i + 1
+                        STATUS.indexed = indexed
+                    if delay and i < len(items) - 1:
+                        await asyncio.sleep(delay)
 
-    log.info("VLM indexer: %d/%d item(s) indexed", indexed, len(items))
-    return indexed
+        log.info("VLM indexer: %d/%d item(s) indexed", indexed, len(items))
+        STATUS.note(f"Done: {indexed}/{len(items)} item(s) indexed.")
+        return indexed
+    finally:
+        STATUS.running = False

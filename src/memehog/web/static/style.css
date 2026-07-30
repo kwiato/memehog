@@ -401,6 +401,19 @@ body.spicy-mode .topbar { border-bottom-color: var(--accent); }
 .vlm-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .vlm-test.ok { color: #7fd695; font-size: 14px; }
 .vlm-test.error { color: var(--danger); font-size: 14px; }
+.vlm-status { margin-top: 8px; }
+.vlm-progress { margin: 6px 0; font-size: 14px; }
+.vlm-log {
+  background: var(--bg3);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 180px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .about { text-align: center; }
 .about-logo { font-size: 64px; margin: 20px 0 0; }
 

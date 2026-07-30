@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import html
 import io
 import uuid
@@ -21,7 +22,8 @@ from ..config import Settings
 from ..core import appsettings
 from ..core import clients as clients_svc
 from ..core import items as items_svc
-from ..core.indexer import describe_image
+from ..core.indexer import STATUS as indexer_status
+from ..core.indexer import describe_image, run_indexing
 from ..core.library import ingest_file
 from ..core.queue import DownloadQueue
 from ..search.base import SearchBackend
@@ -56,6 +58,7 @@ async def _settings_modal(
             "owners": sorted(settings.allowed_ids),
             "scan_hour": _cron_hour(cron),
             "vlm": vlm,
+            "status": indexer_status,
         },
     )
 
@@ -175,6 +178,36 @@ async def test_vlm(
         return HTMLResponse(
             f'<span class="vlm-test error">❌ {html.escape(str(exc)[:160])}</span>'
         )
+
+
+def _vlm_status_response(request: Request):
+    return templates.TemplateResponse(
+        request, "partials/vlm_status.html", {"status": indexer_status}
+    )
+
+
+@router.get("/ui/settings/vlm/status", response_class=HTMLResponse)
+async def vlm_status(request: Request):
+    return _vlm_status_response(request)
+
+
+@router.post("/ui/settings/vlm/run", response_class=HTMLResponse)
+async def vlm_run(request: Request):
+    if not indexer_status.running:
+        app = request.app
+        task = asyncio.create_task(
+            run_indexing(
+                app.state.session_factory,
+                app.state.settings,
+                app.state.search,
+                transport=getattr(app.state, "vlm_transport", None),
+            )
+        )
+        # Keep a reference (avoids GC) and swallow any stray exception so the
+        # event loop doesn't warn about an unobserved task failure.
+        app.state.vlm_task = task
+        task.add_done_callback(lambda t: None if t.cancelled() else t.exception())
+    return _vlm_status_response(request)
 
 
 @router.get("/ui/about", response_class=HTMLResponse)

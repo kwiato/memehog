@@ -1,11 +1,32 @@
+import asyncio
 import json
 
 import httpx
+import pytest
 from conftest import write_png
 
 from memehog.core import items as items_svc
-from memehog.core.indexer import run_indexing
+from memehog.core.indexer import STATUS, run_indexing
 from memehog.core.library import ingest_file
+from memehog.core.queue import DownloadQueue
+from memehog.web import create_app
+
+
+@pytest.fixture(autouse=True)
+def reset_indexer_status():
+    STATUS.running = False
+    STATUS.total = STATUS.processed = STATUS.indexed = 0
+    STATUS.log.clear()
+    yield
+
+
+async def wait_for_run_end(timeout: float = 5.0) -> None:
+    """Wait until the background indexer task has finished and logged."""
+    for _ in range(int(timeout / 0.05)):
+        if not STATUS.running and STATUS.log:
+            return
+        await asyncio.sleep(0.05)
+    raise AssertionError("indexer run did not finish in time")
 
 
 def vlm_settings(settings, **overrides):
@@ -143,6 +164,37 @@ async def test_vlm_test_endpoint_requires_config(client):
     )
     assert resp.status_code == 200
     assert "Fill in the endpoint and model" in resp.text
+
+
+async def test_run_now_endpoint(settings, session_factory, search):
+    vlm_settings(settings)
+    item = await ingest_png(session_factory, settings, search)
+    reply = {"ocr_text": "", "description": "sowa z monoklem"}
+
+    queue = DownloadQueue(session_factory, settings, search)
+    app = create_app(settings, session_factory, search, queue)
+    app.state.vlm_transport = vlm_transport(reply)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        resp = await client.post("/ui/settings/vlm/run")
+        assert resp.status_code == 200
+        await wait_for_run_end()
+        status_resp = await client.get("/ui/settings/vlm/status")
+        assert "Done: 1/1" in status_resp.text
+        assert "sowa z monoklem" in status_resp.text
+
+    async with session_factory() as session:
+        fresh = await items_svc.get_item(session, item.id)
+        assert fresh.index_status == "indexed"
+
+
+async def test_run_now_without_config_logs_hint(client):
+    resp = await client.post("/ui/settings/vlm/run")
+    assert resp.status_code == 200
+    await wait_for_run_end()
+    status_resp = await client.get("/ui/settings/vlm/status")
+    assert "Not configured" in status_resp.text
 
 
 async def test_api_error_leaves_items_pending(settings, session_factory, search):
