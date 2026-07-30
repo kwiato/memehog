@@ -51,11 +51,13 @@ def vlm_transport(reply: dict | str, status_code: int = 200) -> httpx.MockTransp
     return httpx.MockTransport(handler)
 
 
-async def ingest_png(session_factory, settings, search, name="meme.png", **kwargs):
+async def ingest_png(
+    session_factory, settings, search, name="meme.png", color="red", **kwargs
+):
     async with session_factory() as session:
         item, _ = await ingest_file(
             session, settings, search,
-            write_png(settings.tmp_dir / name),
+            write_png(settings.tmp_dir / name, color=color),
             origin="web", **kwargs,
         )
         return item
@@ -197,15 +199,77 @@ async def test_run_now_without_config_logs_hint(client):
     assert "Not configured" in status_resp.text
 
 
+async def test_one_bad_reply_does_not_kill_the_batch(
+    settings, session_factory, search
+):
+    """A parse failure (with rollback) must not break processing later items."""
+    vlm_settings(settings)
+    bad = await ingest_png(session_factory, settings, search, name="a.png")
+    # different pixels → different sha, so both get ingested
+    good = await ingest_png(
+        session_factory, settings, search, name="b.png", color="blue"
+    )
+
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        content = (
+            "not json at all" if calls["n"] == 1
+            else json.dumps({"ocr_text": "", "description": "niebieski kwadrat"})
+        )
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": content}}]}
+        )
+
+    indexed = await run_indexing(
+        session_factory, settings, search, transport=httpx.MockTransport(handler)
+    )
+    assert indexed == 1
+    async with session_factory() as session:
+        assert (await items_svc.get_item(session, bad.id)).index_status == "pending"
+        assert (await items_svc.get_item(session, good.id)).index_status == "indexed"
+
+
 async def test_api_error_leaves_items_pending(settings, session_factory, search):
     vlm_settings(settings)
     item = await ingest_png(session_factory, settings, search)
 
     indexed = await run_indexing(
         session_factory, settings, search,
-        transport=vlm_transport({"error": "quota"}, status_code=429),
+        transport=vlm_transport({"error": "bad key"}, status_code=403),
     )
     assert indexed == 0
     async with session_factory() as session:
         fresh = await items_svc.get_item(session, item.id)
         assert fresh.index_status == "pending"
+
+
+async def test_transient_503_is_retried(
+    settings, session_factory, search, monkeypatch
+):
+    from memehog.core import indexer as indexer_mod
+
+    monkeypatch.setattr(indexer_mod, "TRANSIENT_BACKOFF", (0, 0, 0))
+    vlm_settings(settings)
+    item = await ingest_png(session_factory, settings, search)
+
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(503, json={"error": "high demand"})
+        reply = json.dumps({"ocr_text": "", "description": "przetrwał 503"})
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": reply}}]}
+        )
+
+    indexed = await run_indexing(
+        session_factory, settings, search, transport=httpx.MockTransport(handler)
+    )
+    assert indexed == 1
+    assert calls["n"] == 2
+    async with session_factory() as session:
+        fresh = await items_svc.get_item(session, item.id)
+        assert fresh.index_status == "indexed"

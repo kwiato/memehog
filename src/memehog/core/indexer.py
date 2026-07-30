@@ -48,6 +48,11 @@ _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
 # isolated bad items just stay pending and are retried next night.
 MAX_CONSECUTIVE_FAILURES = 3
 
+# Overload/rate-limit responses are retried with these back-off delays (s)
+# before giving up on the run; auth/config errors (401, 404...) stop at once.
+TRANSIENT_HTTP = {429, 500, 502, 503, 504, 529}
+TRANSIENT_BACKOFF = (15, 30, 60)
+
 
 class IndexerStatus:
     """In-memory progress of the current/last indexer run.
@@ -198,49 +203,86 @@ async def run_indexing(
                 return 0
             delay = 60.0 / settings.vlm_rpm if settings.vlm_rpm > 0 else 0.0
 
+            # Only ids here — items are (re)fetched one by one inside the loop,
+            # so a session.rollback() after a failure can't leave us holding
+            # expired ORM objects (lazy refresh outside the async context).
             stmt = (
-                select(Item)
+                select(Item.id)
                 .where(Item.index_status == "pending")
-                .options(selectinload(Item.tags))
                 .order_by(Item.id)
                 .limit(settings.vlm_max_per_run)
             )
             if not settings.vlm_index_spicy:
                 stmt = stmt.where(Item.filename.not_like("spicy/%"))
-            items = (await session.scalars(stmt)).all()
-            if not items:
+            item_ids = list(await session.scalars(stmt))
+            if not item_ids:
                 STATUS.note("Nothing to do — no pending items.")
                 return 0
-            STATUS.total = len(items)
+            total = len(item_ids)
+            STATUS.total = total
             log.info("VLM indexer: %d item(s) to process (model %s)",
-                     len(items), settings.vlm_model)
-            STATUS.note(
-                f"Starting: {len(items)} item(s), model {settings.vlm_model}"
-            )
+                     total, settings.vlm_model)
+            STATUS.note(f"Starting: {total} item(s), model {settings.vlm_model}")
 
             async with httpx.AsyncClient(timeout=120, transport=transport) as client:
-                for i, item in enumerate(items):
+                stop_run = False
+                for i, item_id in enumerate(item_ids):
+                    attempts = 0
                     try:
-                        if await _index_one(session, settings, search, client, item):
-                            indexed += 1
-                            consecutive_failures = 0
-                    except httpx.HTTPStatusError as exc:
-                        # Auth/model errors and exhausted quotas affect the whole
-                        # run — stop and leave the rest pending for next night.
-                        log.warning(
-                            "VLM API returned %s — stopping this run: %s",
-                            exc.response.status_code, exc.response.text[:300],
-                        )
-                        STATUS.note(
-                            f"API error HTTP {exc.response.status_code}: "
-                            f"{exc.response.text[:120]} — run stopped, the rest "
-                            f"stays pending"
-                        )
-                        await session.rollback()
-                        break
+                        while True:
+                            item = await session.get(
+                                Item, item_id, options=[selectinload(Item.tags)]
+                            )
+                            if item is None:  # deleted while we were running
+                                break
+                            try:
+                                if await _index_one(
+                                    session, settings, search, client, item
+                                ):
+                                    indexed += 1
+                                    consecutive_failures = 0
+                                break
+                            except httpx.HTTPStatusError as exc:
+                                code = exc.response.status_code
+                                await session.rollback()
+                                if (
+                                    code in TRANSIENT_HTTP
+                                    and attempts < len(TRANSIENT_BACKOFF)
+                                ):
+                                    # Overloaded model / rate limit — wait and
+                                    # retry the same item.
+                                    wait = TRANSIENT_BACKOFF[attempts]
+                                    attempts += 1
+                                    log.info(
+                                        "VLM API HTTP %s — retry %d/%d in %ds",
+                                        code, attempts, len(TRANSIENT_BACKOFF), wait,
+                                    )
+                                    STATUS.note(
+                                        f"HTTP {code} (overloaded?) — retry "
+                                        f"{attempts}/{len(TRANSIENT_BACKOFF)} "
+                                        f"in {wait}s"
+                                    )
+                                    await asyncio.sleep(wait)
+                                    continue
+                                # Auth/model errors, or transient errors that
+                                # survived all retries — stop the whole run and
+                                # leave the rest pending for next night.
+                                log.warning(
+                                    "VLM API returned %s — stopping this run: %s",
+                                    code, exc.response.text[:300],
+                                )
+                                STATUS.note(
+                                    f"API error HTTP {code}: "
+                                    f"{exc.response.text[:120]} — run stopped, "
+                                    f"the rest stays pending"
+                                )
+                                stop_run = True
+                                break
+                        if stop_run:
+                            break
                     except Exception as exc:  # noqa: BLE001 - keep the batch alive
-                        log.exception("VLM indexing failed for item %s", item.id)
-                        STATUS.note(f"Item {item.id}: error — {str(exc)[:120]}")
+                        log.exception("VLM indexing failed for item %s", item_id)
+                        STATUS.note(f"Item {item_id}: error — {str(exc)[:120]}")
                         await session.rollback()
                         consecutive_failures += 1
                         if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
@@ -256,11 +298,11 @@ async def run_indexing(
                     finally:
                         STATUS.processed = i + 1
                         STATUS.indexed = indexed
-                    if delay and i < len(items) - 1:
+                    if delay and i < total - 1:
                         await asyncio.sleep(delay)
 
-        log.info("VLM indexer: %d/%d item(s) indexed", indexed, len(items))
-        STATUS.note(f"Done: {indexed}/{len(items)} item(s) indexed.")
+        log.info("VLM indexer: %d/%d item(s) indexed", indexed, total)
+        STATUS.note(f"Done: {indexed}/{total} item(s) indexed.")
         return indexed
     finally:
         STATUS.running = False
