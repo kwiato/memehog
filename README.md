@@ -4,7 +4,7 @@
 
 - 🤖 **Telegram bot** — send a link or a photo/video/GIF, it lands in your library
 - ⬇️ **Downloads** Instagram posts/reels/carousels, TikToks and direct image/video links (yt-dlp + gallery-dl)
-- 🔍 **Full-text search** over captions, tags and filenames (SQLite FTS5) — with the schema ready for OCR text and vector embeddings
+- 🔍 **Full-text search** over captions, tags and filenames (SQLite FTS5) — and, with a VLM configured, over the text on the memes and AI-written descriptions of what they show
 - 🖼️ **Web gallery** — masonry grid, infinite scroll, lightbox, tagging, upload by file, URL or drag&drop onto the page
 - 🔌 **REST API** with token auth — the future Chrome extension and Android app will use it
 - 👥 **Multi-user** — friends send `/register` to the bot, you approve them with one tap in Telegram (or in web Settings)
@@ -96,7 +96,7 @@ Updating: *Recreate* the container with *Re-pull image* enabled (or use Watchtow
 - a direct link to an image or video file
 - a photo, video or GIF straight from your phone (the caption becomes searchable text)
 
-**Web UI** — browse, search (`kot w kapeluszu` matches prefixes, so partial words work), filter by type/tag, click a meme for the lightbox where you can tag, download, share or delete it (delete hides under the ⋮ menu, file details under the ⌄ arrow). The floating **＋ button** (bottom right) opens the upload dialog for files or a link to download — or skip it and **drag&drop files anywhere on the page**. The **🔥 button** switches to spicy-only view; while it's on, uploads and drops are saved as spicy right away. Mark or unmark an existing meme from its ⋮ menu. The **☰ menu** opens Settings (Telegram clients, nightly maintenance hour) and About.
+**Web UI** — browse, search (`kot w kapeluszu` matches prefixes, so partial words work), filter by type/tag, click a meme for the lightbox where you can tag, download, share or delete it (delete hides under the ⋮ menu, file details under the ⌄ arrow). The floating **＋ button** (bottom right) opens the upload dialog for files or a link to download — or skip it and **drag&drop files anywhere on the page**. The **🔥 button** switches to spicy-only view; while it's on, uploads and drops are saved as spicy right away. Mark or unmark an existing meme from its ⋮ menu. The **☰ menu** opens Settings (Telegram clients, AI indexing, nightly maintenance hour) and About.
 
 **Library layout** — files live under `library/YYYY/<hash>.<ext>` on disk (spicy ones under `library/spicy/YYYY/…` — toggling 🔥 on a meme moves the file), deduplicated by content hash. The nightly job (default 03:00, configurable in Settings) transcodes `webp`/`webm` into universally supported `jpg`/`mp4`.
 
@@ -117,10 +117,19 @@ Everything lives in `.env` (see [.env.example](.env.example)):
 | `HOST_DATA_DIR` | `./data` | Host directory mounted as the data volume (Docker) |
 | `DATA_DIR` | `data` | Data directory (bare-metal runs; `/data` inside Docker) |
 | `COOKIES_FILE` | *(empty)* | Netscape-format cookies file for Instagram/TikTok¹ |
-| `SCAN_CRON` | `0 3 * * *` | Schedule for the nightly indexer (future OCR/embeddings) |
+| `SCAN_CRON` | `0 3 * * *` | Schedule for the nightly maintenance (transcode + VLM index) |
+| `VLM_BASE_URL` | *(empty)* | OpenAI-compatible vision endpoint for the nightly indexer² |
+| `VLM_API_KEY` | *(empty)* | API key for the VLM endpoint |
+| `VLM_MODEL` | *(empty)* | Vision model name, e.g. `gemini-2.5-flash` |
+| `VLM_LANGUAGE` | `English` | Language the meme descriptions are written in |
+| `VLM_RPM` | `10` | Indexer request rate — keep under your provider's free-tier limit |
+| `VLM_MAX_PER_RUN` | `200` | Max items indexed per night (spreads backfills over several nights) |
+| `VLM_INDEX_SPICY` | `false` | Also send spicy memes to the VLM (see privacy note²) |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 
 ¹ Instagram increasingly requires login for downloads. Export cookies from your browser with an extension like *Get cookies.txt LOCALLY*, drop the file into the data directory and set `COOKIES_FILE=/data/cookies.txt`.
+
+² The nightly indexer sends each new meme's thumbnail to a vision model and stores the OCR'd text plus a short description in the search index. Easiest setup: **Settings (☰ → ⚙️) → AI indexing** — pick a provider preset, paste the API key, hit *Test connection*, save (web settings override `.env`). Any OpenAI-compatible endpoint works — the free Gemini tier (key at [aistudio.google.com](https://aistudio.google.com), `VLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai`) comfortably covers a personal library; OpenRouter, Groq, Mistral or a local Ollama work too. **Privacy note:** free API tiers may use your inputs for model training, which is why spicy memes are excluded unless `VLM_INDEX_SPICY=true`.
 
 ### Remote access
 
@@ -169,8 +178,8 @@ REST API ───────────────┘         │
 
 ## Roadmap
 
-- [ ] **Nightly OCR** — Tesseract over new items (and sampled video frames), feeding the existing `ocr_text` FTS column
-- [ ] **Vector search** — image/text embeddings (local model on Pi 5 or a cloud API) for semantic queries like "sad frog in the rain"
+- [x] **Nightly VLM indexing** — OCR + AI descriptions of new items via any OpenAI-compatible vision API, feeding the `ocr_text` FTS column
+- [ ] **Vector search** — text embeddings over the VLM descriptions for fuzzy semantic queries (the `embeddings` table is ready)
 - [ ] **Chrome extension** — right-click → *Save to Memehog*
 - [ ] **Android app** — share sheet target + gallery
 

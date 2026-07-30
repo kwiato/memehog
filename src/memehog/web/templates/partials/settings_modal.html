@@ -25,10 +25,107 @@
     </section>
 
     <section>
+      <h3>AI indexing (search inside memes)</h3>
+      <p class="muted">
+        Each night new memes are sent to a vision model that reads the text on
+        them and writes a short description — both become searchable. Works with
+        any OpenAI-compatible API; the free
+        <a href="https://aistudio.google.com" target="_blank" rel="noopener">Google Gemini</a>
+        tier easily covers a personal library. Pick a preset, paste your key,
+        hit <em>Test</em>, save.
+      </p>
+      <form class="vlm-form" hx-post="/ui/settings/vlm" hx-target="#modal" hx-swap="innerHTML">
+        <div class="vlm-row">
+          <label>Provider preset
+            <select id="vlm-provider" onchange="vlmApplyPreset(this.value)">
+              <option value="">— custom —</option>
+              <option value="gemini">Google Gemini (free tier)</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="groq">Groq</option>
+              <option value="mistral">Mistral</option>
+              <option value="ollama">Ollama (local)</option>
+            </select>
+          </label>
+          <label>Model
+            <input type="text" id="vlm-model" name="model" list="vlm-models"
+                   value="{{ vlm.vlm_model }}" placeholder="e.g. gemini-2.5-flash">
+            <datalist id="vlm-models"></datalist>
+          </label>
+        </div>
+        <label>Endpoint (base URL)
+          <input type="text" id="vlm-base-url" name="base_url"
+                 value="{{ vlm.vlm_base_url }}" placeholder="https://…/v1">
+        </label>
+        <label>API key
+          <input type="password" name="api_key" value="{{ vlm.vlm_api_key }}"
+                 placeholder="paste your API key" autocomplete="off">
+        </label>
+        <div class="vlm-row">
+          <label>Description language
+            <input type="text" name="language" value="{{ vlm.vlm_language }}" size="10">
+          </label>
+          <label>Requests / min
+            <input type="number" name="rpm" value="{{ '%g' % vlm.vlm_rpm }}" min="1" step="any">
+          </label>
+          <label>Max per night
+            <input type="number" name="max_per_run" value="{{ vlm.vlm_max_per_run }}" min="1">
+          </label>
+        </div>
+        <label class="vlm-checkbox">
+          <input type="checkbox" name="index_spicy" value="1"
+                 {{ 'checked' if vlm.vlm_index_spicy else '' }}>
+          Index 🔥 spicy memes too
+          <span class="muted">(free API tiers may use inputs for training)</span>
+        </label>
+        <div class="vlm-actions">
+          <button class="btn primary" type="submit">Save</button>
+          <button class="btn" type="button" hx-post="/ui/settings/vlm/test"
+                  hx-include="closest form" hx-target="#vlm-test-result"
+                  hx-swap="innerHTML">🧪 Test connection</button>
+          <span id="vlm-test-result"></span>
+        </div>
+      </form>
+      <script>
+        window.VLM_PRESETS = {
+          gemini: {
+            url: "https://generativelanguage.googleapis.com/v1beta/openai",
+            models: ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"],
+          },
+          openrouter: {
+            url: "https://openrouter.ai/api/v1",
+            models: ["qwen/qwen2.5-vl-72b-instruct:free", "meta-llama/llama-4-scout:free",
+                     "google/gemini-2.0-flash-exp:free"],
+          },
+          groq: {
+            url: "https://api.groq.com/openai/v1",
+            models: ["meta-llama/llama-4-scout-17b-16e-instruct",
+                     "meta-llama/llama-4-maverick-17b-128e-instruct"],
+          },
+          mistral: {
+            url: "https://api.mistral.ai/v1",
+            models: ["pixtral-12b-latest", "mistral-small-latest"],
+          },
+          ollama: {
+            url: "http://localhost:11434/v1",
+            models: ["qwen2.5vl", "llama3.2-vision", "moondream"],
+          },
+        };
+        window.vlmApplyPreset = function (name) {
+          const preset = window.VLM_PRESETS[name];
+          if (!preset) return;
+          document.getElementById('vlm-base-url').value = preset.url;
+          document.getElementById('vlm-models').innerHTML =
+            preset.models.map(m => `<option value="${m}">`).join('');
+          document.getElementById('vlm-model').value = preset.models[0];
+        };
+      </script>
+    </section>
+
+    <section>
       <h3>Nightly maintenance</h3>
       <p class="muted">
         Converts <code>webp → jpg</code> and <code>webm → mp4</code> (many apps
-        can't handle those formats) and will run the OCR indexer in the future.
+        can't handle those formats) and runs the AI indexer on new memes.
       </p>
       <form class="scan-hour" hx-post="/ui/settings/scan-hour" hx-target="#modal" hx-swap="innerHTML">
         <label>Runs daily at

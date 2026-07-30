@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import html
+import io
 import uuid
 from pathlib import Path
 
+import httpx
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import (
     HTMLResponse,
@@ -18,6 +21,7 @@ from ..config import Settings
 from ..core import appsettings
 from ..core import clients as clients_svc
 from ..core import items as items_svc
+from ..core.indexer import describe_image
 from ..core.library import ingest_file
 from ..core.queue import DownloadQueue
 from ..search.base import SearchBackend
@@ -43,6 +47,7 @@ async def _settings_modal(
     cron = await appsettings.get_setting(
         session, appsettings.SCAN_CRON_KEY, settings.scan_cron
     )
+    vlm = await appsettings.effective_settings(session, settings)
     return templates.TemplateResponse(
         request,
         "partials/settings_modal.html",
@@ -50,6 +55,7 @@ async def _settings_modal(
             "clients": clients,
             "owners": sorted(settings.allowed_ids),
             "scan_hour": _cron_hour(cron),
+            "vlm": vlm,
         },
     )
 
@@ -89,6 +95,86 @@ async def set_scan_hour(
             appsettings.NIGHTLY_JOB_ID, trigger=CronTrigger.from_crontab(cron)
         )
     return await _settings_modal(request, session, settings)
+
+
+@router.post("/ui/settings/vlm", response_class=HTMLResponse)
+async def set_vlm(
+    request: Request,
+    base_url: str = Form(""),
+    api_key: str = Form(""),
+    model: str = Form(""),
+    language: str = Form("English"),
+    rpm: float = Form(10),
+    max_per_run: int = Form(200),
+    index_spicy: str = Form("0"),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    values = {
+        "vlm_base_url": base_url.strip(),
+        "vlm_api_key": api_key.strip(),
+        "vlm_model": model.strip(),
+        "vlm_language": language.strip() or "English",
+        "vlm_rpm": f"{max(rpm, 0.0):g}",
+        "vlm_max_per_run": str(max(max_per_run, 1)),
+        "vlm_index_spicy": "1" if index_spicy == "1" else "0",
+    }
+    for key, value in values.items():
+        await appsettings.set_setting(session, key, value)
+    return await _settings_modal(request, session, settings)
+
+
+def _vlm_test_card() -> bytes:
+    """A small JPEG with text on it, so the test exercises OCR too."""
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (240, 120), "#2b6cb0")
+    draw = ImageDraw.Draw(img)
+    draw.text((20, 45), "MEMEHOG TEST 123", fill="white")
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=90)
+    return buf.getvalue()
+
+
+@router.post("/ui/settings/vlm/test", response_class=HTMLResponse)
+async def test_vlm(
+    request: Request,
+    base_url: str = Form(""),
+    api_key: str = Form(""),
+    model: str = Form(""),
+    language: str = Form("English"),
+    settings: Settings = Depends(get_settings),
+):
+    trial = settings.model_copy(
+        update={
+            "vlm_base_url": base_url.strip(),
+            "vlm_api_key": api_key.strip(),
+            "vlm_model": model.strip(),
+            "vlm_language": language.strip() or "English",
+        }
+    )
+    if not trial.vlm_enabled:
+        return HTMLResponse(
+            '<span class="vlm-test error">Fill in the endpoint and model first.</span>'
+        )
+    try:
+        transport = getattr(request.app.state, "vlm_transport", None)
+        async with httpx.AsyncClient(timeout=60, transport=transport) as client:
+            ocr, description = await describe_image(client, trial, _vlm_test_card())
+        reply = description or ocr or "(empty reply)"
+        return HTMLResponse(
+            f'<span class="vlm-test ok">✅ Works! Model replied: '
+            f'&bdquo;{html.escape(reply[:160])}&rdquo;</span>'
+        )
+    except httpx.HTTPStatusError as exc:
+        detail = f"HTTP {exc.response.status_code}: {exc.response.text[:160]}"
+        return HTMLResponse(
+            f'<span class="vlm-test error">❌ {html.escape(detail)}</span>'
+        )
+    except Exception as exc:  # noqa: BLE001 - show whatever went wrong
+        return HTMLResponse(
+            f'<span class="vlm-test error">❌ {html.escape(str(exc)[:160])}</span>'
+        )
 
 
 @router.get("/ui/about", response_class=HTMLResponse)

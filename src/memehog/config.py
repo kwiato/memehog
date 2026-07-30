@@ -20,6 +20,26 @@ class Settings(BaseSettings):
     scan_cron: str = "0 3 * * *"
     log_level: str = "INFO"
 
+    # Nightly VLM indexer: any OpenAI-compatible chat-completions endpoint with
+    # vision (Gemini, OpenRouter, Groq, Mistral, local Ollama, ...). Both
+    # base_url and model must be set for indexing to run.
+    vlm_base_url: str = ""
+    vlm_api_key: str = ""
+    vlm_model: str = ""
+    vlm_language: str = "English"
+    # Requests per minute the indexer may use (free tiers are tight).
+    vlm_rpm: float = 10
+    # Cap per nightly run, so a big backfill spreads over several nights
+    # instead of burning a daily free-tier quota in one go.
+    vlm_max_per_run: int = 200
+    # Send spicy memes to the VLM too? Free API tiers may use inputs for
+    # training, so this is opt-in.
+    vlm_index_spicy: bool = False
+
+    @property
+    def vlm_enabled(self) -> bool:
+        return bool(self.vlm_base_url and self.vlm_model)
+
     @property
     def allowed_ids(self) -> set[int]:
         return {

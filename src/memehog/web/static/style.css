@@ -393,6 +393,14 @@ body.spicy-mode .topbar { border-bottom-color: var(--accent); }
 .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .btn.small { padding: 4px 10px; font-size: 13px; }
 .add-client { display: flex; gap: 8px; flex-wrap: wrap; }
+.vlm-form { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.vlm-form label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.vlm-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.vlm-row label { flex: 1; min-width: 130px; }
+.vlm-form .vlm-checkbox { flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vlm-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.vlm-test.ok { color: #7fd695; font-size: 14px; }
+.vlm-test.error { color: var(--danger); font-size: 14px; }
 .about { text-align: center; }
 .about-logo { font-size: 64px; margin: 20px 0 0; }
 

@@ -9,8 +9,10 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func, select
 
 from .config import Settings
+from .core import appsettings
 from .core.appsettings import NIGHTLY_JOB_ID, SCAN_CRON_KEY, get_setting
 from .core.convert import run_conversions
+from .core.indexer import run_indexing
 from .core.queue import DownloadQueue
 from .db import create_engine, init_db
 from .db.models import Item
@@ -21,15 +23,19 @@ log = logging.getLogger("memehog")
 
 
 async def nightly_maintenance(session_factory, settings, search) -> None:
-    """Nightly batch: transcode webp/webm, later also OCR/embeddings."""
+    """Nightly batch: transcode webp/webm, then VLM-index new items."""
     converted = await run_conversions(session_factory, settings, search)
+    indexed = await run_indexing(session_factory, settings, search)
     async with session_factory() as session:
         pending = await session.scalar(
             select(func.count(Item.id)).where(Item.index_status == "pending")
         )
+        effective = await appsettings.effective_settings(session, settings)
     log.info(
-        "Nightly maintenance done: %d file(s) converted, %s item(s) awaiting OCR "
-        "(indexer not implemented yet)", converted, pending,
+        "Nightly maintenance done: %d file(s) converted, %d item(s) indexed, "
+        "%s still pending%s",
+        converted, indexed, pending,
+        "" if effective.vlm_enabled else " (VLM indexer not configured)",
     )
 
 
