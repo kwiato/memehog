@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # training, so this is opt-in.
     vlm_index_spicy: bool = False
 
+    # Baked into the Docker image by CI (see docker/Dockerfile); "dev" locally.
+    memehog_build_sha: str = "dev"
+    memehog_build_date: str = ""
+
     @property
     def vlm_enabled(self) -> bool:
         return bool(self.vlm_base_url and self.vlm_model)

@@ -59,6 +59,9 @@ async def _settings_modal(
             "scan_hour": _cron_hour(cron),
             "vlm": vlm,
             "status": indexer_status,
+            "version": __version__,
+            "build_sha": settings.memehog_build_sha,
+            "build_date": settings.memehog_build_date,
         },
     )
 
@@ -212,11 +215,20 @@ async def vlm_run(request: Request):
 
 @router.get("/ui/about", response_class=HTMLResponse)
 async def about_modal(
-    request: Request, session: AsyncSession = Depends(get_session)
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
     count = await items_svc.count_items(session)
     return templates.TemplateResponse(
-        request, "partials/about_modal.html", {"version": __version__, "count": count}
+        request,
+        "partials/about_modal.html",
+        {
+            "version": __version__,
+            "count": count,
+            "build_sha": settings.memehog_build_sha,
+            "build_date": settings.memehog_build_date,
+        },
     )
 
 

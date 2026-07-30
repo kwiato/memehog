@@ -414,6 +414,7 @@ body.spicy-mode .topbar { border-bottom-color: var(--accent); }
   white-space: pre-wrap;
   word-break: break-word;
 }
+.build-info { margin-top: 18px; font-size: 12px; }
 .about { text-align: center; }
 .about-logo { font-size: 64px; margin: 20px 0 0; }
 

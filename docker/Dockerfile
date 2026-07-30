@@ -25,4 +25,10 @@ EXPOSE 2137
 HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \
     CMD python -c "import urllib.request,os; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"2137\")}/api/v1/health')" || exit 1
 
+# Baked in by CI so the UI can show which commit is running ("dev" locally).
+ARG GIT_SHA=dev
+ARG BUILD_DATE=
+ENV MEMEHOG_BUILD_SHA=$GIT_SHA \
+    MEMEHOG_BUILD_DATE=$BUILD_DATE
+
 CMD ["python", "-m", "memehog"]

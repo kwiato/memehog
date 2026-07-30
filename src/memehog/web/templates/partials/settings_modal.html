@@ -143,5 +143,14 @@
         <button class="btn primary" type="submit">Save</button>
       </form>
     </section>
+
+    <p class="muted build-info">
+      Memehog v{{ version }} · build
+      {% if build_sha != 'dev' %}
+      <a href="https://github.com/kwiato/memehog/commit/{{ build_sha }}"
+         target="_blank" rel="noopener"><code>{{ build_sha[:7] }}</code></a>
+      {% else %}<code>dev</code>{% endif %}
+      {% if build_date %}· {{ build_date }}{% endif %}
+    </p>
   </div>
 </div>

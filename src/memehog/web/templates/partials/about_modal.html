@@ -3,6 +3,13 @@
     <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
     <p class="about-logo">🐗</p>
     <h2>Memehog <span class="muted">v{{ version }}</span></h2>
+    <p class="muted build-info">build
+      {% if build_sha != 'dev' %}
+      <a href="https://github.com/kwiato/memehog/commit/{{ build_sha }}"
+         target="_blank" rel="noopener"><code>{{ build_sha[:7] }}</code></a>
+      {% else %}<code>dev</code>{% endif %}
+      {% if build_date %}· {{ build_date }}{% endif %}
+    </p>
     <p>Self-hosted meme library — a Telegram bot that hoards your memes and a
        web gallery to find them again.</p>
     <p class="muted">{{ count }} memes hoarded so far.</p>

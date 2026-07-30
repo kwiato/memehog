@@ -41,6 +41,10 @@ jobs:
             type=semver,pattern={{version}}
             type=sha
 
+      - name: Build info
+        id: buildinfo
+        run: echo "date=$(date -u +'%Y-%m-%d %H:%M UTC')" >> "$GITHUB_OUTPUT"
+
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -49,5 +53,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            BUILD_DATE=${{ steps.buildinfo.outputs.date }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
