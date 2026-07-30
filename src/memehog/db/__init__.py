@@ -20,6 +20,7 @@ from .models import (  # noqa: F401
     Submission,
     Tag,
     TelegramClient,
+    VlmSample,
 )
 
 # Regular FTS5 table (not contentless) so per-row DELETE works everywhere;

@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 import html
 import io
+import json
 import uuid
 from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
+from sqlalchemy import select
 from fastapi.responses import (
     HTMLResponse,
     JSONResponse,
@@ -20,12 +22,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import __version__
 from ..config import Settings
 from ..core import appsettings
+from ..core import bench as bench_svc
 from ..core import clients as clients_svc
 from ..core import items as items_svc
 from ..core.indexer import STATUS as indexer_status
 from ..core.indexer import describe_image, run_indexing
 from ..core.library import ingest_file
 from ..core.queue import DownloadQueue
+from ..db.models import Item, VlmSample
 from ..search.base import SearchBackend
 from .deps import get_queue, get_search, get_session, get_settings
 
@@ -62,6 +66,12 @@ async def _settings_modal(
             "version": __version__,
             "build_sha": settings.memehog_build_sha,
             "build_date": settings.memehog_build_date,
+            "bench": bench_svc.BENCH_STATUS,
+            "bench_configs": bench_svc.parse_configs(
+                await appsettings.get_setting(
+                    session, bench_svc.BENCH_CONFIGS_KEY, "[]"
+                )
+            ),
         },
     )
 
@@ -211,6 +221,101 @@ async def vlm_run(request: Request):
         app.state.vlm_task = task
         task.add_done_callback(lambda t: None if t.cancelled() else t.exception())
     return _vlm_status_response(request)
+
+
+def _bench_status_response(request: Request):
+    return templates.TemplateResponse(
+        request, "partials/vlm_bench_status.html", {"bench": bench_svc.BENCH_STATUS}
+    )
+
+
+@router.get("/ui/settings/vlm/bench/status", response_class=HTMLResponse)
+async def vlm_bench_status(request: Request):
+    return _bench_status_response(request)
+
+
+@router.post("/ui/settings/vlm/bench", response_class=HTMLResponse)
+async def vlm_bench_run(
+    request: Request,
+    sample_size: int = Form(10),
+    bench_label: list[str] = Form(default=[]),
+    bench_url: list[str] = Form(default=[]),
+    bench_model: list[str] = Form(default=[]),
+    bench_key: list[str] = Form(default=[]),
+    session: AsyncSession = Depends(get_session),
+):
+    configs = [
+        {
+            "label": (label.strip() or model.strip())[:128],
+            "base_url": url.strip(),
+            "model": model.strip(),
+            "api_key": key.strip(),
+        }
+        for label, url, model, key in zip(
+            bench_label, bench_url, bench_model, bench_key
+        )
+        if url.strip() and model.strip()
+    ]
+    await appsettings.set_setting(
+        session, bench_svc.BENCH_CONFIGS_KEY, json.dumps(configs)
+    )
+    if not bench_svc.BENCH_STATUS.running:
+        app = request.app
+        task = asyncio.create_task(
+            bench_svc.run_benchmark(
+                app.state.session_factory,
+                app.state.settings,
+                sample_size=sample_size,
+                transport=getattr(app.state, "vlm_transport", None),
+            )
+        )
+        app.state.vlm_bench_task = task
+        task.add_done_callback(lambda t: None if t.cancelled() else t.exception())
+    return _bench_status_response(request)
+
+
+@router.get("/ui/vlm/bench", response_class=HTMLResponse)
+async def vlm_bench_results(
+    request: Request, session: AsyncSession = Depends(get_session)
+):
+    samples = (
+        await session.scalars(
+            select(VlmSample).order_by(VlmSample.item_id, VlmSample.model_label)
+        )
+    ).all()
+    labels = sorted({s.model_label for s in samples})
+
+    summary = {}
+    for label in labels:
+        rows = [s for s in samples if s.model_label == label]
+        ok = [s for s in rows if not s.error]
+        summary[label] = {
+            "ok": len(ok),
+            "total": len(rows),
+            "avg_ms": int(sum(s.latency_ms for s in ok) / len(ok)) if ok else 0,
+            "avg_desc": int(sum(len(s.description) for s in ok) / len(ok)) if ok else 0,
+        }
+
+    by_item: dict[int, dict[str, VlmSample]] = {}
+    for s in samples:
+        by_item.setdefault(s.item_id, {})[s.model_label] = s
+    items = {}
+    if by_item:
+        items = {
+            i.id: i
+            for i in await session.scalars(
+                select(Item).where(Item.id.in_(by_item.keys()))
+            )
+        }
+    rows = [
+        {"item": items.get(item_id), "cells": [cells.get(l) for l in labels]}
+        for item_id, cells in by_item.items()
+    ]
+    return templates.TemplateResponse(
+        request,
+        "partials/vlm_bench_results.html",
+        {"labels": labels, "summary": summary, "rows": rows},
+    )
 
 
 @router.get("/ui/about", response_class=HTMLResponse)

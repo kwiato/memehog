@@ -88,6 +88,24 @@ class Embedding(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class VlmSample(Base):
+    """One vision model's take on one meme, produced by the settings-page
+    benchmark — stored so different models can be compared side by side."""
+
+    __tablename__ = "vlm_samples"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("items.id", ondelete="CASCADE"), index=True
+    )
+    model_label: Mapped[str] = mapped_column(String(128))
+    ocr_text: Mapped[str] = mapped_column(Text, default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class AppSetting(Base):
     """Runtime-editable settings (web UI) that override .env defaults."""
 

@@ -1,0 +1,62 @@
+<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
+  <div class="modal-box panel bench-results">
+    <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
+    <h2>📊 Model benchmark results</h2>
+
+    {% if not labels %}
+    <p class="muted">No benchmark results yet — configure models in
+      Settings → Model benchmark and hit <em>Run benchmark</em>.</p>
+    {% else %}
+    <table class="bench-summary">
+      <thead>
+        <tr><th>Model</th><th>OK</th><th>Avg latency</th><th>Avg description</th></tr>
+      </thead>
+      <tbody>
+        {% for label in labels %}
+        <tr>
+          <td><strong>{{ label }}</strong></td>
+          <td>{{ summary[label].ok }}/{{ summary[label].total }}</td>
+          <td>{{ summary[label].avg_ms }} ms</td>
+          <td>{{ summary[label].avg_desc }} chars</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="bench-grid-wrap">
+      <table class="bench-grid">
+        <thead>
+          <tr>
+            <th>Meme</th>
+            {% for label in labels %}<th>{{ label }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td class="bench-thumb">
+              {% if row.item and row.item.thumb_filename %}
+              <img src="/thumbs/{{ row.item.thumb_filename }}" alt="" loading="lazy">
+              {% else %}<span class="muted">#{{ row.item.id if row.item else '?' }}</span>{% endif %}
+            </td>
+            {% for cell in row.cells %}
+            <td>
+              {% if cell is none %}
+              <span class="muted">—</span>
+              {% elif cell.error %}
+              <span class="bench-error">{{ cell.error }}</span>
+              {% else %}
+              <p class="bench-desc">{{ cell.description }}</p>
+              {% if cell.ocr_text %}<p class="bench-ocr muted">OCR: {{ cell.ocr_text }}</p>{% endif %}
+              <p class="muted bench-ms">{{ cell.latency_ms }} ms</p>
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
