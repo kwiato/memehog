@@ -120,7 +120,7 @@ Everything lives in `.env` (see [.env.example](.env.example)):
 | `SCAN_CRON` | `0 3 * * *` | Schedule for the nightly maintenance (transcode + VLM index) |
 | `VLM_BASE_URL` | *(empty)* | OpenAI-compatible vision endpoint for the nightly indexer² |
 | `VLM_API_KEY` | *(empty)* | API key for the VLM endpoint |
-| `VLM_MODEL` | *(empty)* | Vision model name, e.g. `gemini-2.5-flash` |
+| `VLM_MODEL` | *(empty)* | Vision model name, e.g. `gemini-3.5-flash` |
 | `VLM_LANGUAGE` | `English` | Language the meme descriptions are written in |
 | `VLM_RPM` | `10` | Indexer request rate — keep under your provider's free-tier limit |
 | `VLM_MAX_PER_RUN` | `200` | Max items indexed per night (spreads backfills over several nights) |
