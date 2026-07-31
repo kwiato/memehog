@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import html
 import io
-import json
 import uuid
 from pathlib import Path
 
@@ -29,7 +28,7 @@ from ..core.indexer import STATUS as indexer_status
 from ..core.indexer import describe_image, run_indexing
 from ..core.library import ingest_file
 from ..core.queue import DownloadQueue
-from ..db.models import Item, VlmSample
+from ..db.models import Item, VlmProfile, VlmSample
 from ..search.base import SearchBackend
 from .deps import get_queue, get_search, get_session, get_settings
 
@@ -46,36 +45,6 @@ async def index(request: Request, session: AsyncSession = Depends(get_session)):
     )
 
 
-async def _settings_modal(
-    request: Request, session: AsyncSession, settings: Settings
-):
-    clients = await clients_svc.list_clients(session)
-    cron = await appsettings.get_setting(
-        session, appsettings.SCAN_CRON_KEY, settings.scan_cron
-    )
-    vlm = await appsettings.effective_settings(session, settings)
-    return templates.TemplateResponse(
-        request,
-        "partials/settings_modal.html",
-        {
-            "clients": clients,
-            "owners": sorted(settings.allowed_ids),
-            "scan_hour": _cron_hour(cron),
-            "vlm": vlm,
-            "status": indexer_status,
-            "version": __version__,
-            "build_sha": settings.memehog_build_sha,
-            "build_date": settings.memehog_build_date,
-            "bench": bench_svc.BENCH_STATUS,
-            "bench_configs": bench_svc.parse_configs(
-                await appsettings.get_setting(
-                    session, bench_svc.BENCH_CONFIGS_KEY, "[]"
-                )
-            ),
-        },
-    )
-
-
 def _cron_hour(cron: str) -> int:
     parts = cron.split()
     try:
@@ -84,13 +53,68 @@ def _cron_hour(cron: str) -> int:
         return 3
 
 
-@router.get("/ui/settings", response_class=HTMLResponse)
-async def settings_modal(
+async def _list_profiles(session: AsyncSession) -> list[VlmProfile]:
+    return list(await session.scalars(select(VlmProfile).order_by(VlmProfile.id)))
+
+
+async def _selected_profile_id(session: AsyncSession) -> int | None:
+    profile = await appsettings.active_vlm_profile(session)
+    return profile.id if profile else None
+
+
+async def _migrate_legacy_vlm(session: AsyncSession, settings: Settings) -> None:
+    """One-time: turn a pre-profiles VLM config (loose .env / app_settings
+    fields) into a saved profile, so the dropdown shows it."""
+    if await session.scalar(select(VlmProfile.id).limit(1)) is not None:
+        return
+    effective = await appsettings.effective_settings(session, settings)
+    if not effective.vlm_enabled:
+        return
+    profile = VlmProfile(
+        name=effective.vlm_model,
+        base_url=effective.vlm_base_url,
+        api_key=effective.vlm_api_key,
+        model=effective.vlm_model,
+    )
+    session.add(profile)
+    await session.flush()
+    await appsettings.set_setting(
+        session, appsettings.VLM_PROFILE_KEY, str(profile.id)
+    )
+
+
+async def _vlm_general_ctx(session: AsyncSession, settings: Settings) -> dict:
+    return {
+        "vlm": await appsettings.effective_settings(session, settings),
+        "profiles": await _list_profiles(session),
+        "selected_profile_id": await _selected_profile_id(session),
+        "status": indexer_status,
+    }
+
+
+@router.get("/settings", response_class=HTMLResponse)
+async def settings_page(
     request: Request,
+    tab: str = "general",
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
-    return await _settings_modal(request, session, settings)
+    await _migrate_legacy_vlm(session, settings)
+    cron = await appsettings.get_setting(
+        session, appsettings.SCAN_CRON_KEY, settings.scan_cron
+    )
+    ctx = {
+        "tab": "ai" if tab == "ai" else "general",
+        "clients": await clients_svc.list_clients(session),
+        "owners": sorted(settings.allowed_ids),
+        "scan_hour": _cron_hour(cron),
+        "bench": bench_svc.BENCH_STATUS,
+        "version": __version__,
+        "build_sha": settings.memehog_build_sha,
+        "build_date": settings.memehog_build_date,
+        **await _vlm_general_ctx(session, settings),
+    }
+    return templates.TemplateResponse(request, "settings.html", ctx)
 
 
 @router.post("/ui/settings/scan-hour", response_class=HTMLResponse)
@@ -110,15 +134,15 @@ async def set_scan_hour(
         scheduler.reschedule_job(
             appsettings.NIGHTLY_JOB_ID, trigger=CronTrigger.from_crontab(cron)
         )
-    return await _settings_modal(request, session, settings)
+    return templates.TemplateResponse(
+        request, "partials/settings_maintenance.html", {"scan_hour": hour}
+    )
 
 
 @router.post("/ui/settings/vlm", response_class=HTMLResponse)
 async def set_vlm(
     request: Request,
-    base_url: str = Form(""),
-    api_key: str = Form(""),
-    model: str = Form(""),
+    profile_id: str = Form(""),
     language: str = Form("English"),
     rpm: float = Form(10),
     max_per_run: int = Form(200),
@@ -127,9 +151,7 @@ async def set_vlm(
     settings: Settings = Depends(get_settings),
 ):
     values = {
-        "vlm_base_url": base_url.strip(),
-        "vlm_api_key": api_key.strip(),
-        "vlm_model": model.strip(),
+        appsettings.VLM_PROFILE_KEY: profile_id if profile_id.isdigit() else "",
         "vlm_language": language.strip() or "English",
         "vlm_rpm": f"{max(rpm, 0.0):g}",
         "vlm_max_per_run": str(max(max_per_run, 1)),
@@ -137,7 +159,88 @@ async def set_vlm(
     }
     for key, value in values.items():
         await appsettings.set_setting(session, key, value)
-    return await _settings_modal(request, session, settings)
+    return templates.TemplateResponse(
+        request,
+        "partials/settings_vlm_general.html",
+        await _vlm_general_ctx(session, settings),
+    )
+
+
+# --- VLM model profiles (AI models tab) --------------------------------------
+
+
+async def _profiles_response(request: Request, session: AsyncSession):
+    return templates.TemplateResponse(
+        request,
+        "partials/vlm_profiles.html",
+        {
+            "profiles": await _list_profiles(session),
+            "selected_profile_id": await _selected_profile_id(session),
+        },
+    )
+
+
+@router.get("/ui/vlm/profiles/new", response_class=HTMLResponse)
+async def vlm_profile_modal(request: Request):
+    return templates.TemplateResponse(request, "partials/vlm_profile_modal.html", {})
+
+
+@router.post("/ui/vlm/profiles", response_class=HTMLResponse)
+async def vlm_profile_create(
+    request: Request,
+    name: str = Form(""),
+    base_url: str = Form(...),
+    model: str = Form(...),
+    api_key: str = Form(""),
+    session: AsyncSession = Depends(get_session),
+):
+    profile = VlmProfile(
+        name=(name.strip() or model.strip())[:128],
+        base_url=base_url.strip(),
+        model=model.strip(),
+        api_key=api_key.strip(),
+    )
+    session.add(profile)
+    await session.flush()
+    # First saved model becomes the active one right away.
+    current = await appsettings.get_setting(session, appsettings.VLM_PROFILE_KEY)
+    if not current.strip().isdigit():
+        await appsettings.set_setting(
+            session, appsettings.VLM_PROFILE_KEY, str(profile.id)
+        )
+    await session.commit()
+    return await _profiles_response(request, session)
+
+
+@router.post("/ui/vlm/profiles/{profile_id}/delete", response_class=HTMLResponse)
+async def vlm_profile_delete(
+    request: Request,
+    profile_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    profile = await session.get(VlmProfile, profile_id)
+    if profile is not None:
+        selected = await _selected_profile_id(session)
+        await session.delete(profile)
+        if selected == profile_id:
+            await appsettings.set_setting(session, appsettings.VLM_PROFILE_KEY, "")
+        await session.commit()
+    return await _profiles_response(request, session)
+
+
+@router.post("/ui/vlm/profiles/{profile_id}/test", response_class=HTMLResponse)
+async def vlm_profile_test(
+    request: Request,
+    profile_id: int,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+):
+    profile = await session.get(VlmProfile, profile_id)
+    if profile is None:
+        raise HTTPException(404, "Profile not found")
+    return await _run_vlm_test(
+        request, settings, profile.base_url, profile.api_key, profile.model
+    )
 
 
 def _vlm_test_card() -> bytes:
@@ -152,21 +255,14 @@ def _vlm_test_card() -> bytes:
     return buf.getvalue()
 
 
-@router.post("/ui/settings/vlm/test", response_class=HTMLResponse)
-async def test_vlm(
-    request: Request,
-    base_url: str = Form(""),
-    api_key: str = Form(""),
-    model: str = Form(""),
-    language: str = Form("English"),
-    settings: Settings = Depends(get_settings),
-):
+async def _run_vlm_test(
+    request: Request, settings: Settings, base_url: str, api_key: str, model: str
+) -> HTMLResponse:
     trial = settings.model_copy(
         update={
             "vlm_base_url": base_url.strip(),
             "vlm_api_key": api_key.strip(),
             "vlm_model": model.strip(),
-            "vlm_language": language.strip() or "English",
         }
     )
     if not trial.vlm_enabled:
@@ -191,6 +287,18 @@ async def test_vlm(
         return HTMLResponse(
             f'<span class="vlm-test error">❌ {html.escape(str(exc)[:160])}</span>'
         )
+
+
+@router.post("/ui/settings/vlm/test", response_class=HTMLResponse)
+async def test_vlm(
+    request: Request,
+    base_url: str = Form(""),
+    api_key: str = Form(""),
+    model: str = Form(""),
+    settings: Settings = Depends(get_settings),
+):
+    """Used by the add-model dialog to test a config before saving it."""
+    return await _run_vlm_test(request, settings, base_url, api_key, model)
 
 
 def _vlm_status_response(request: Request):
@@ -238,27 +346,7 @@ async def vlm_bench_status(request: Request):
 async def vlm_bench_run(
     request: Request,
     sample_size: int = Form(10),
-    bench_label: list[str] = Form(default=[]),
-    bench_url: list[str] = Form(default=[]),
-    bench_model: list[str] = Form(default=[]),
-    bench_key: list[str] = Form(default=[]),
-    session: AsyncSession = Depends(get_session),
 ):
-    configs = [
-        {
-            "label": (label.strip() or model.strip())[:128],
-            "base_url": url.strip(),
-            "model": model.strip(),
-            "api_key": key.strip(),
-        }
-        for label, url, model, key in zip(
-            bench_label, bench_url, bench_model, bench_key
-        )
-        if url.strip() and model.strip()
-    ]
-    await appsettings.set_setting(
-        session, bench_svc.BENCH_CONFIGS_KEY, json.dumps(configs)
-    )
     if not bench_svc.BENCH_STATUS.running:
         app = request.app
         task = asyncio.create_task(

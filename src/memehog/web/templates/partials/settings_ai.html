@@ -1,0 +1,34 @@
+<section>
+  <h3>Saved models</h3>
+  <p class="muted">
+    Vision models the indexer and the benchmark can use. Pick the active one in
+    the <a href="/settings">General</a> tab.
+  </p>
+  <div id="profiles">
+    {% include "partials/vlm_profiles.html" %}
+  </div>
+  <button class="btn primary" hx-get="/ui/vlm/profiles/new"
+          hx-target="#modal" hx-swap="innerHTML">＋ Add model</button>
+</section>
+
+<section>
+  <h3>Benchmark</h3>
+  <p class="muted">
+    Runs <em>every</em> saved model on the same random sample of your memes and
+    stores the outputs side by side — compare, pick the winner, set it as the
+    active model. Nothing is written to the search index; results are replaced
+    on each run.
+  </p>
+  <form class="vlm-form" hx-post="/ui/settings/vlm/bench"
+        hx-target="#vlm-bench-status" hx-swap="outerHTML">
+    <div class="vlm-actions">
+      <label class="bench-sample">Sample
+        <input type="number" name="sample_size" value="10" min="1" max="25">
+      </label>
+      <button class="btn primary" type="submit">🏁 Run benchmark</button>
+      <button class="btn" type="button" hx-get="/ui/vlm/bench"
+              hx-target="#modal" hx-swap="innerHTML">📊 Results</button>
+    </div>
+  </form>
+  {% include "partials/vlm_bench_status.html" %}
+</section>

@@ -88,6 +88,22 @@ class Embedding(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class VlmProfile(Base):
+    """A saved vision-model connection (endpoint + model + API key).
+
+    The active profile (app_settings `vlm_profile_id`) feeds the nightly
+    indexer; the benchmark runs across all of them."""
+
+    __tablename__ = "vlm_profiles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(128))
+    base_url: Mapped[str] = mapped_column(Text)
+    api_key: Mapped[str] = mapped_column(Text, default="")
+    model: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class VlmSample(Base):
     """One vision model's take on one meme, produced by the settings-page
     benchmark — stored so different models can be compared side by side."""

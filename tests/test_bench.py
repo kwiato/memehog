@@ -6,11 +6,21 @@ import pytest
 from sqlalchemy import select
 from test_indexer import ingest_png
 
-from memehog.core import appsettings
-from memehog.core.bench import BENCH_CONFIGS_KEY, BENCH_STATUS, run_benchmark
+from memehog.core.bench import BENCH_STATUS, run_benchmark
 from memehog.core.queue import DownloadQueue
-from memehog.db.models import VlmSample
+from memehog.db.models import VlmProfile, VlmSample
 from memehog.web import create_app
+
+
+async def add_profiles(session_factory) -> None:
+    async with session_factory() as session:
+        session.add(VlmProfile(
+            name="model-a", base_url="https://x.test/v1", model="vision-a"
+        ))
+        session.add(VlmProfile(
+            name="model-b", base_url="https://y.test/v1", model="vision-b"
+        ))
+        await session.commit()
 
 
 @pytest.fixture(autouse=True)
@@ -44,22 +54,11 @@ async def wait_for_bench_end(timeout: float = 5.0) -> None:
     raise AssertionError("benchmark did not finish in time")
 
 
-CONFIGS = [
-    {"label": "model-a", "base_url": "https://x.test/v1",
-     "model": "vision-a", "api_key": ""},
-    {"label": "model-b", "base_url": "https://y.test/v1",
-     "model": "vision-b", "api_key": ""},
-]
-
-
 async def test_benchmark_stores_side_by_side(settings, session_factory, search):
     settings.vlm_rpm = 0
     await ingest_png(session_factory, settings, search, name="a.png")
     await ingest_png(session_factory, settings, search, name="b.png", color="blue")
-    async with session_factory() as session:
-        await appsettings.set_setting(
-            session, BENCH_CONFIGS_KEY, json.dumps(CONFIGS)
-        )
+    await add_profiles(session_factory)
 
     done = await run_benchmark(
         session_factory, settings, sample_size=10,
@@ -76,16 +75,17 @@ async def test_benchmark_stores_side_by_side(settings, session_factory, search):
     assert any("vision-b" in s.description for s in samples)
 
 
-async def test_benchmark_without_configs_notes_it(settings, session_factory, search):
+async def test_benchmark_without_profiles_notes_it(settings, session_factory, search):
     settings.vlm_rpm = 0
     done = await run_benchmark(session_factory, settings, sample_size=5)
     assert done == 0
-    assert any("No benchmark models" in line for line in BENCH_STATUS.log)
+    assert any("No saved models" in line for line in BENCH_STATUS.log)
 
 
 async def test_bench_ui_flow(settings, session_factory, search):
     settings.vlm_rpm = 0
     await ingest_png(session_factory, settings, search, name="a.png")
+    await add_profiles(session_factory)
 
     queue = DownloadQueue(session_factory, settings, search)
     app = create_app(settings, session_factory, search, queue)
@@ -94,14 +94,7 @@ async def test_bench_ui_flow(settings, session_factory, search):
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
         resp = await client.post(
-            "/ui/settings/vlm/bench",
-            data={
-                "sample_size": "5",
-                "bench_label": ["A", "B"],
-                "bench_url": ["https://x.test/v1", "https://y.test/v1"],
-                "bench_model": ["vision-a", "vision-b"],
-                "bench_key": ["", ""],
-            },
+            "/ui/settings/vlm/bench", data={"sample_size": "5"}
         )
         assert resp.status_code == 200
         await wait_for_bench_end()
@@ -111,5 +104,5 @@ async def test_bench_ui_flow(settings, session_factory, search):
         assert "opis od vision-a" in results.text
         assert "opis od vision-b" in results.text
         # summary table lists both labels
-        assert "<strong>A</strong>" in results.text
-        assert "<strong>B</strong>" in results.text
+        assert "<strong>model-a</strong>" in results.text
+        assert "<strong>model-b</strong>" in results.text

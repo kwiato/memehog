@@ -21,8 +21,7 @@
   <details class="dropdown">
     <summary class="btn" title="Menu">☰</summary>
     <nav class="dropdown-menu">
-      <button hx-get="/ui/settings" hx-target="#modal" hx-swap="innerHTML"
-              onclick="this.closest('details').removeAttribute('open')">⚙️ Settings</button>
+      <button onclick="location.href='/settings'">⚙️ Settings</button>
       <button hx-get="/ui/about" hx-target="#modal" hx-swap="innerHTML"
               onclick="this.closest('details').removeAttribute('open')">ℹ️ About</button>
     </nav>

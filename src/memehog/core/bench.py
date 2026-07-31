@@ -9,7 +9,6 @@ Nothing here touches the search index — it's a pure experiment.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 
@@ -18,35 +17,14 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from ..config import Settings
-from ..db.models import Item, VlmSample
-from .appsettings import effective_settings, get_setting
+from ..db.models import Item, VlmProfile, VlmSample
+from .appsettings import effective_settings
 from .indexer import IndexerStatus, _load_thumb_jpeg, describe_image
 
 log = logging.getLogger(__name__)
 
-BENCH_CONFIGS_KEY = "vlm_bench_configs"
 BENCH_STATUS = IndexerStatus()
 MAX_SAMPLE = 25
-
-
-def parse_configs(raw: str) -> list[dict]:
-    """The benchmark model list, stored as a JSON array in app_settings."""
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return []
-    configs = []
-    for entry in data if isinstance(data, list) else []:
-        if isinstance(entry, dict) and entry.get("base_url") and entry.get("model"):
-            configs.append(
-                {
-                    "label": (entry.get("label") or entry["model"])[:128],
-                    "base_url": entry["base_url"],
-                    "api_key": entry.get("api_key", ""),
-                    "model": entry["model"],
-                }
-            )
-    return configs
 
 
 async def run_benchmark(
@@ -69,11 +47,22 @@ async def run_benchmark(
     try:
         async with session_factory() as session:
             settings = await effective_settings(session, settings)
-            configs = parse_configs(
-                await get_setting(session, BENCH_CONFIGS_KEY, "[]")
-            )
+            profiles = (
+                await session.scalars(select(VlmProfile).order_by(VlmProfile.id))
+            ).all()
+            configs = [
+                {
+                    "label": p.name,
+                    "base_url": p.base_url,
+                    "api_key": p.api_key,
+                    "model": p.model,
+                }
+                for p in profiles
+            ]
             if not configs:
-                BENCH_STATUS.note("No benchmark models configured — add some rows.")
+                BENCH_STATUS.note(
+                    "No saved models — add some in the AI models tab first."
+                )
                 return 0
 
             sample_size = max(1, min(MAX_SAMPLE, sample_size))

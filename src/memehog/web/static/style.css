@@ -414,12 +414,45 @@ body.spicy-mode .topbar { border-bottom-color: var(--accent); }
   white-space: pre-wrap;
   word-break: break-word;
 }
-.bench-row { display: flex; gap: 6px; align-items: center; }
-.bench-row input { min-width: 0; }
-.bench-row input[name="bench_label"] { flex: 1; }
-.bench-row input[name="bench_url"] { flex: 2; }
-.bench-row input[name="bench_model"] { flex: 2; }
-.bench-row input[name="bench_key"] { flex: 1.5; }
+/* --- settings page --- */
+.settings-page {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 18px 22px 40px;
+}
+.settings-page h3 { margin: 26px 0 6px; }
+.settings-page code { background: var(--bg3); padding: 1px 6px; border-radius: 4px; }
+.settings-page a { color: var(--accent); }
+.settings-page .tabs a { color: var(--muted); }
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--bg3);
+  margin-bottom: 6px;
+}
+.tab {
+  padding: 9px 18px;
+  border-radius: 8px 8px 0 0;
+  text-decoration: none;
+  font-size: 15px;
+}
+.settings-page .tabs a.active {
+  background: var(--bg2);
+  color: var(--fg);
+  border: 1px solid var(--bg3);
+  border-bottom: 1px solid var(--bg2);
+  margin-bottom: -1px;
+}
+.preset-info {
+  background: var(--bg2);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.preset-info a { color: var(--accent); }
+.profile-url { font-size: 12px; word-break: break-all; }
 .bench-sample { display: flex; align-items: center; gap: 6px; }
 .bench-sample input { width: 64px; }
 .modal-box.bench-results { width: min(1100px, 96vw); }

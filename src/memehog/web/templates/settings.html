@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Settings — Memehog{% endblock %}
+{% block content %}
+<header class="topbar">
+  <h1><a class="logo" href="/">🐗 Memehog</a> <span class="count">Settings</span></h1>
+  <a class="btn" href="/">← Gallery</a>
+</header>
+
+<main class="settings-page">
+  <nav class="tabs">
+    <a href="/settings" class="tab {{ 'active' if tab == 'general' else '' }}">⚙️ General</a>
+    <a href="/settings?tab=ai" class="tab {{ 'active' if tab == 'ai' else '' }}">🤖 AI models</a>
+  </nav>
+
+  {% if tab == 'ai' %}
+    {% include "partials/settings_ai.html" %}
+  {% else %}
+    {% include "partials/settings_general.html" %}
+  {% endif %}
+
+  <p class="muted build-info">
+    Memehog v{{ version }} · build
+    {% if build_sha != 'dev' %}
+    <a href="https://github.com/kwiato/memehog/commit/{{ build_sha }}"
+       target="_blank" rel="noopener"><code>{{ build_sha[:7] }}</code></a>
+    {% else %}<code>dev</code>{% endif %}
+    {% if build_date %}· {{ build_date }}{% endif %}
+  </p>
+</main>
+{% endblock %}

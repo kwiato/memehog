@@ -1,0 +1,12 @@
+<div id="maintenance">
+  <form class="scan-hour" hx-post="/ui/settings/scan-hour" hx-target="#maintenance" hx-swap="outerHTML">
+    <label>Runs daily at
+      <select name="hour">
+        {% for h in range(24) %}
+        <option value="{{ h }}" {{ 'selected' if h == scan_hour else '' }}>{{ '%02d' % h }}:00</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="btn primary" type="submit">Save</button>
+  </form>
+</div>

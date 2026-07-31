@@ -125,18 +125,30 @@ async def test_json_in_markdown_fences_is_tolerated(settings, session_factory, s
         assert [h.id for h in hits] == [item.id]
 
 
-async def test_web_settings_override_env(
+async def test_saved_profile_drives_the_indexer(
     client, settings, session_factory, search
 ):
-    """VLM configured via the web UI (not .env) is picked up by the indexer."""
+    """A model profile saved via the web UI is picked up by the indexer."""
     item = await ingest_png(session_factory, settings, search)
+
+    resp = await client.post(
+        "/ui/vlm/profiles",
+        data={
+            "name": "test-profile",
+            "base_url": "https://vlm.test/v1",
+            "model": "test-vision",
+            "api_key": "test-key",
+        },
+    )
+    assert resp.status_code == 200
+    # first saved profile becomes active automatically
+    assert "test-profile" in resp.text
+    assert "active" in resp.text
 
     resp = await client.post(
         "/ui/settings/vlm",
         data={
-            "base_url": "https://vlm.test/v1",
-            "api_key": "test-key",
-            "model": "test-vision",
+            "profile_id": "1",
             "language": "Polish",
             "rpm": "0",
             "max_per_run": "50",
@@ -144,11 +156,9 @@ async def test_web_settings_override_env(
         },
     )
     assert resp.status_code == 200
-    # the re-rendered modal shows the saved values
-    assert 'value="test-vision"' in resp.text
     assert 'value="Polish"' in resp.text
 
-    # .env settings are empty — overrides alone must enable the indexer
+    # .env settings are empty — the profile alone must enable the indexer
     assert not settings.vlm_enabled
     reply = {"ocr_text": "", "description": "kot w kapeluszu"}
     indexed = await run_indexing(
@@ -158,6 +168,26 @@ async def test_web_settings_override_env(
     async with session_factory() as session:
         hits = await items_svc.list_items(session, search, q="kapelusz")
         assert [h.id for h in hits] == [item.id]
+
+
+async def test_deleting_active_profile_disables_indexing(
+    client, settings, session_factory, search
+):
+    await client.post(
+        "/ui/vlm/profiles",
+        data={"name": "p1", "base_url": "https://vlm.test/v1",
+              "model": "test-vision", "api_key": "k"},
+    )
+    resp = await client.post("/ui/vlm/profiles/1/delete")
+    assert resp.status_code == 200
+    assert "No models saved yet" in resp.text
+
+    await ingest_png(session_factory, settings, search)
+    reply = {"ocr_text": "", "description": "x"}
+    indexed = await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(reply)
+    )
+    assert indexed == 0  # active profile gone, .env empty → indexer disabled
 
 
 async def test_vlm_test_endpoint_requires_config(client):

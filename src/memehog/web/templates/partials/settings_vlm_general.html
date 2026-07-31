@@ -1,0 +1,41 @@
+<div id="vlm-general">
+  <form class="vlm-form" hx-post="/ui/settings/vlm" hx-target="#vlm-general" hx-swap="outerHTML">
+    <div class="vlm-row">
+      <label>Active model
+        <select name="profile_id">
+          <option value="">— indexing disabled —</option>
+          {% for p in profiles %}
+          <option value="{{ p.id }}" {{ 'selected' if p.id == selected_profile_id else '' }}>
+            {{ p.name }} ({{ p.model }})
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Description language
+        <input type="text" name="language" value="{{ vlm.vlm_language }}">
+      </label>
+    </div>
+    <div class="vlm-row">
+      <label>Requests / min
+        <input type="number" name="rpm" value="{{ '%g' % vlm.vlm_rpm }}" min="1" step="any">
+      </label>
+      <label>Max per night
+        <input type="number" name="max_per_run" value="{{ vlm.vlm_max_per_run }}" min="1">
+      </label>
+    </div>
+    <label class="vlm-checkbox">
+      <input type="checkbox" name="index_spicy" value="1"
+             {{ 'checked' if vlm.vlm_index_spicy else '' }}>
+      Index 🔥 spicy memes too
+      <span class="muted">(free API tiers may use inputs for training)</span>
+    </label>
+    <div class="vlm-actions">
+      <button class="btn primary" type="submit">Save</button>
+      <button class="btn" type="button" hx-post="/ui/settings/vlm/run"
+              hx-target="#vlm-status" hx-swap="outerHTML"
+              hx-confirm="Run the indexer on all pending memes now? (Uses saved settings — hit Save first if you changed anything.)"
+              >▶ Run indexer now</button>
+    </div>
+  </form>
+  {% include "partials/vlm_status.html" %}
+</div>

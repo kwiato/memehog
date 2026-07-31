@@ -1,0 +1,103 @@
+<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
+  <div class="modal-box panel">
+    <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
+    <h2>＋ Add AI model</h2>
+
+    <form class="vlm-form" hx-post="/ui/vlm/profiles" hx-target="#profiles" hx-swap="innerHTML"
+          hx-on::after-request="if (event.detail.successful) document.getElementById('modal').innerHTML = ''">
+      <label>Provider preset
+        <select id="vlm-provider" onchange="vlmApplyPreset(this.value)">
+          <option value="">— custom —</option>
+          <option value="gemini">Google Gemini (free tier)</option>
+          <option value="openrouter">OpenRouter (free pool)</option>
+          <option value="groq">Groq</option>
+          <option value="mistral">Mistral</option>
+          <option value="ollama">Ollama (local)</option>
+        </select>
+      </label>
+      <div id="vlm-preset-info" class="preset-info" hidden></div>
+      <div class="vlm-row">
+        <label>Name
+          <input type="text" name="name" id="vlm-name" placeholder="e.g. gemini-flash">
+        </label>
+        <label>Model
+          <input type="text" name="model" id="vlm-model" list="vlm-models"
+                 placeholder="e.g. gemini-3.5-flash" required>
+          <datalist id="vlm-models"></datalist>
+        </label>
+      </div>
+      <label>Endpoint (base URL)
+        <input type="text" name="base_url" id="vlm-base-url" placeholder="https://…/v1" required>
+      </label>
+      <label>API key
+        <input type="password" name="api_key" placeholder="paste your API key" autocomplete="off">
+      </label>
+      <div class="vlm-actions">
+        <button class="btn" type="button" hx-post="/ui/settings/vlm/test"
+                hx-include="closest form" hx-target="#vlm-test-result"
+                hx-swap="innerHTML">🧪 Test connection</button>
+        <button class="btn primary" type="submit">Save model</button>
+        <span id="vlm-test-result"></span>
+      </div>
+    </form>
+
+    <script>
+      window.VLM_PRESETS = {
+        gemini: {
+          url: "https://generativelanguage.googleapis.com/v1beta/openai",
+          models: ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash"],
+          info: 'Best free tier for this job — hundreds of requests/day. ' +
+                'Get an API key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> ' +
+                '(Google account, no card). Current model list: ' +
+                '<a href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener">Gemini API docs</a>. ' +
+                'Note: the free tier may use inputs for training.',
+        },
+        openrouter: {
+          url: "https://openrouter.ai/api/v1",
+          models: ["openrouter/free"],
+          info: '<code>openrouter/free</code> auto-picks an available free vision model ' +
+                '(the free pool rotates weekly). ~50 free requests/day without credits. ' +
+                'Key: <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">openrouter.ai/settings/keys</a> · ' +
+                'free models: <a href="https://openrouter.ai/models?max_price=0" target="_blank" rel="noopener">openrouter.ai/models</a>.',
+        },
+        groq: {
+          url: "https://api.groq.com/openai/v1",
+          models: ["meta-llama/llama-4-scout-17b-16e-instruct",
+                   "meta-llama/llama-4-maverick-17b-128e-instruct"],
+          info: 'Very fast inference, decent free tier. ' +
+                'Key: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> · ' +
+                'current models: <a href="https://console.groq.com/docs/models" target="_blank" rel="noopener">docs</a> ' +
+                '(check which ones support image input).',
+        },
+        mistral: {
+          url: "https://api.mistral.ai/v1",
+          models: ["pixtral-12b-latest", "mistral-small-latest"],
+          info: 'Free "Experiment" tier available. ' +
+                'Key: <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">console.mistral.ai/api-keys</a> · ' +
+                'models: <a href="https://docs.mistral.ai/getting-started/models/" target="_blank" rel="noopener">docs</a>.',
+        },
+        ollama: {
+          url: "http://localhost:11434/v1",
+          models: ["qwen2.5vl", "llama3.2-vision", "moondream"],
+          info: 'Runs on your own hardware — free, private, no API key needed ' +
+                '(leave the key empty). Point the URL at your Ollama host. ' +
+                'Vision models: <a href="https://ollama.com/search?c=vision" target="_blank" rel="noopener">ollama.com/search?c=vision</a>. ' +
+                'Note: slow on a Raspberry Pi; better on a PC with a GPU.',
+        },
+      };
+      window.vlmApplyPreset = function (name) {
+        const preset = window.VLM_PRESETS[name];
+        const box = document.getElementById('vlm-preset-info');
+        if (!preset) { box.hidden = true; return; }
+        document.getElementById('vlm-base-url').value = preset.url;
+        document.getElementById('vlm-models').innerHTML =
+          preset.models.map(m => `<option value="${m}">`).join('');
+        document.getElementById('vlm-model').value = preset.models[0];
+        const nameInput = document.getElementById('vlm-name');
+        if (!nameInput.value) nameInput.value = name;
+        box.innerHTML = preset.info;
+        box.hidden = false;
+      };
+    </script>
+  </div>
+</div>

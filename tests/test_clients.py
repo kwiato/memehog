@@ -49,8 +49,8 @@ async def test_clients_api_roundtrip(client):
     ).status_code == 204
 
 
-async def test_settings_modal_and_client_actions(client):
-    resp = await client.get("/ui/settings")
+async def test_settings_page_and_client_actions(client):
+    resp = await client.get("/settings")
     assert resp.status_code == 200
     assert "Telegram clients" in resp.text
     assert "Runs daily at" in resp.text
