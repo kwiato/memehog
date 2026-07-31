@@ -465,9 +465,11 @@ body.spicy-mode .topbar { border-bottom-color: var(--accent); }
   line-height: 1.5;
 }
 .preset-info a { color: var(--accent); }
-/* Spinner shown inside a button while its own htmx request is in flight. */
+/* Spinner shown inside a button while its htmx request is in flight — both
+   for buttons issuing their own request and for a form's submit button. */
 .spin { display: none; }
-.htmx-request > .spin {
+.htmx-request > .spin,
+form.htmx-request button[type="submit"] > .spin {
   display: inline-block;
   width: 11px;
   height: 11px;
