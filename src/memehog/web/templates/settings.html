@@ -2,8 +2,12 @@
 {% block title %}Settings — Memehog{% endblock %}
 {% block content %}
 <header class="topbar">
-  <h1><a class="logo" href="/">🐗 Memehog</a> <span class="count">Settings</span></h1>
-  <a class="btn" href="/">← Gallery</a>
+  <h1><a class="logo" href="/">🐗 Memehog</a></h1>
+  <nav class="main-nav">
+    <a class="btn" href="/">🖼 Gallery</a>
+    <a class="btn active" href="/settings">⚙️ Settings</a>
+    <button class="btn" hx-get="/ui/about" hx-target="#modal" hx-swap="innerHTML">ℹ️ About</button>
+  </nav>
 </header>
 
 <main class="settings-page">
@@ -12,11 +16,13 @@
     <a href="/settings?tab=ai" class="tab {{ 'active' if tab == 'ai' else '' }}">🤖 AI models</a>
   </nav>
 
-  {% if tab == 'ai' %}
-    {% include "partials/settings_ai.html" %}
-  {% else %}
-    {% include "partials/settings_general.html" %}
-  {% endif %}
+  <div class="tab-panel">
+    {% if tab == 'ai' %}
+      {% include "partials/settings_ai.html" %}
+    {% else %}
+      {% include "partials/settings_general.html" %}
+    {% endif %}
+  </div>
 
   <p class="muted build-info">
     Memehog v{{ version }} · build
