@@ -1,4 +1,7 @@
-"""Compile the SCSS sources into the checked-in static stylesheet.
+"""Compile the SCSS sources into static/style.css (dev helper).
+
+The Docker build does the same thing with the standalone dart-sass binary,
+so the compiled file is NOT checked in.
 
 Usage:  python scripts/build_css.py
 Needs:  pip install -e .[dev]   (libsass)
@@ -6,29 +9,13 @@ Needs:  pip install -e .[dev]   (libsass)
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-import sass
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src" / "memehog" / "web" / "scss"
-OUT = ROOT / "src" / "memehog" / "web" / "static" / "style.css"
-
-HEADER = (
-    "/* GENERATED FILE - do not edit. "
-    "Sources: src/memehog/web/scss/, build: scripts/build_css.py */\n"
-)
-
-
-def build() -> str:
-    css = sass.compile(
-        filename=str(SRC / "style.scss"),
-        output_style="expanded",
-        include_paths=[str(SRC)],
-    )
-    return HEADER + css
-
+from memehog.web.styles import write_css  # noqa: E402
 
 if __name__ == "__main__":
-    OUT.write_text(build(), encoding="utf-8", newline="\n")
-    print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size} bytes)")
+    out = write_css()
+    print(f"wrote {out} ({out.stat().st_size} bytes)")

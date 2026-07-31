@@ -196,9 +196,11 @@ pytest
 ffmpeg is optional in development (video thumbnails are skipped without it) but required in production — the Docker image includes it.
 
 **Styles** are written in SCSS (`src/memehog/web/scss/`, theme variables in
-`_variables.scss`) and compiled to the checked-in `static/style.css` with
-`python scripts/build_css.py` (libsass, part of the `dev` extras — no Node
-required). A test fails if the compiled file goes stale.
+`_variables.scss`); `static/style.css` is generated, not checked in. The Docker
+build compiles it with the standalone dart-sass binary (multi-arch, no Node);
+in development it compiles automatically on first start via libsass (part of
+the `dev` extras), or manually with `python scripts/build_css.py` after
+editing.
 
 ## License
 

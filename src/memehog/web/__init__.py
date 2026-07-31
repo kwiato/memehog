@@ -10,6 +10,7 @@ from ..config import Settings
 from ..core.queue import DownloadQueue
 from ..search.base import SearchBackend
 from . import api, ui
+from .styles import ensure_css
 
 
 def create_app(
@@ -31,6 +32,7 @@ def create_app(
     app.include_router(api.router)
     app.include_router(ui.router)
 
+    ensure_css()
     static_dir = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
     app.mount("/media", StaticFiles(directory=str(settings.library_dir)), name="media")

@@ -39,7 +39,7 @@ memehog = "memehog.__main__:cli"
 where = ["src"]
 
 [tool.setuptools.package-data]
-memehog = ["web/templates/**/*", "web/static/**/*"]
+memehog = ["web/templates/**/*", "web/static/**/*", "web/scss/**/*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

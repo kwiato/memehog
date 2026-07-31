@@ -2,13 +2,27 @@
 FROM python:3.12-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
+
+# Compile SCSS → static/style.css with the standalone dart-sass binary before
+# installing, so the stylesheet ships inside the package. dart-sass (not pip
+# libsass) because libsass has no linux-arm64 wheel; no Node involved either.
+ARG TARGETARCH
+ARG DART_SASS_VERSION=1.77.8
+RUN ARCH="${TARGETARCH:-$(uname -m)}" \
+    && case "$ARCH" in arm64|aarch64) SASS_ARCH=arm64 ;; *) SASS_ARCH=x64 ;; esac \
+    && curl -fsSL "https://github.com/sass/dart-sass/releases/download/${DART_SASS_VERSION}/dart-sass-${DART_SASS_VERSION}-linux-${SASS_ARCH}.tar.gz" \
+       | tar -xz -C /tmp \
+    && /tmp/dart-sass/sass --no-source-map \
+       src/memehog/web/scss/style.scss src/memehog/web/static/style.css \
+    && rm -rf /tmp/dart-sass
+
 RUN pip install --no-cache-dir .
 
 # Run as a non-root user (uid 1000 = the default user on Raspberry Pi OS,

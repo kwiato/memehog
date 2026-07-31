@@ -10,6 +10,8 @@ build/
 # Project
 .env
 data/
+# Generated from scss/ (dart-sass in Docker, scripts/build_css.py in dev)
+src/memehog/web/static/style.css
 *.db
 *.db-wal
 *.db-shm
