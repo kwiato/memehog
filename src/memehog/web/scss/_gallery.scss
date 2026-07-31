@@ -1,0 +1,196 @@
+// --- floating add button + upload modal + drag&drop ---
+.fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 60;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  transition: transform 0.12s ease, filter 0.12s ease;
+
+  &:hover { transform: scale(1.08); filter: brightness(1.1); }
+
+  .fab-progress { display: none; font-size: 13px; font-weight: 600; }
+
+  &.busy {
+    .fab-plus { display: none; }
+    .fab-progress { display: block; }
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 3px;
+      border-radius: 50%;
+      border: 2.5px solid rgba(255, 255, 255, 0.35);
+      border-top-color: #fff;
+      animation: fab-spin 0.8s linear infinite;
+    }
+  }
+}
+@keyframes fab-spin {
+  to { transform: rotate(360deg); }
+}
+
+.toasts {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  background: var(--bg2);
+  border: 1px solid var(--bg3);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 10px 18px;
+  font-size: 14px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+
+  &.show { opacity: 1; transform: translateY(0); }
+}
+
+// double class so this outranks .modal-backdrop { display: flex }
+.modal-backdrop.upload-modal { display: none; }
+.modal-backdrop.upload-modal.open { display: flex; }
+.upload-modal form { display: flex; flex-direction: column; gap: 14px; }
+.upload-modal label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+
+// animated collapsible (caption row appears once a file/link is picked)
+.collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-top: -14px; // cancel the form gap while collapsed
+  transition: grid-template-rows 0.25s ease, margin-top 0.25s ease, opacity 0.25s ease;
+
+  &.open { grid-template-rows: 1fr; opacity: 1; margin-top: 0; }
+
+  &:not(.open) .collapse-inner { visibility: hidden; }
+}
+.collapse-inner {
+  overflow: hidden;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 2px; // room for input focus outlines under overflow:hidden
+
+  label { flex: 1; }
+}
+
+.dropzone {
+  border: 2px dashed var(--bg3);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+
+  &:hover { border-color: var(--accent); }
+}
+
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  pointer-events: none; // let drag events fall through to the window
+
+  &.active { display: flex; }
+}
+.drop-inner {
+  border: 3px dashed var(--accent);
+  border-radius: 16px;
+  padding: 44px 60px;
+  text-align: center;
+  font-size: 18px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+.drop-icon { font-size: 54px; }
+.drop-spicy { display: none; color: var(--accent); font-size: 14px; }
+body.spicy-mode .drop-spicy { display: block; }
+
+// Masonry: rows are 8px units, JS assigns each card a row span computed
+// from the aspect ratio stored in data-ar (see layoutMasonry). The visual
+// vertical gap comes from the card's margin-bottom.
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-auto-rows: 8px;
+  row-gap: 0;
+  column-gap: 32px;
+  padding: 24px 32px;
+  max-width: 2000px;
+  margin: 0 auto;
+}
+
+.card {
+  position: relative;
+  margin-bottom: 32px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg2);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+  // poor man's virtual scroll: off-screen cards are neither laid out nor
+  // painted, so a grid with thousands of items stays cheap
+  content-visibility: auto;
+
+  &:hover { transform: scale(1.02); outline: 2px solid var(--accent); }
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: 42px;
+  }
+}
+
+.badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.empty { grid-column: 1 / -1; text-align: center; padding: 60px 0; }
+.sentinel { grid-column: 1 / -1; height: 1px; }
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    column-gap: 8px;
+    padding: 10px;
+  }
+  .card { margin-bottom: 8px; }
+  .topbar { padding: 10px 12px; }
+}

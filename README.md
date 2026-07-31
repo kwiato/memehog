@@ -195,6 +195,11 @@ pytest
 
 ffmpeg is optional in development (video thumbnails are skipped without it) but required in production — the Docker image includes it.
 
+**Styles** are written in SCSS (`src/memehog/web/scss/`, theme variables in
+`_variables.scss`) and compiled to the checked-in `static/style.css` with
+`python scripts/build_css.py` (libsass, part of the `dev` extras — no Node
+required). A test fails if the compiled file goes stale.
+
 ## License
 
 [MIT](LICENSE)

@@ -1,0 +1,149 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal-box {
+  position: relative;
+  background: var(--bg2);
+  border-radius: var(--radius);
+  max-width: #{"min(1000px, 94vw)"};  // interpolated so Sass leaves CSS min() alone
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-media {
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  background: #000;
+
+  img,
+  video {
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+  }
+}
+.modal-meta {
+  padding: 14px 18px;
+
+  a { color: var(--accent); }
+}
+.caption { margin: 0 0 6px; }
+.close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  color: #fff;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.nav-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover { background: rgba(0, 0, 0, 0.85); }
+  &.prev { left: 14px; }
+  &.next { right: 14px; }
+  &[hidden] { display: none; }
+}
+@media (max-width: 640px) {
+  .nav-arrow { width: 38px; height: 38px; }
+  .nav-arrow.prev { left: 6px; }
+  .nav-arrow.next { right: 6px; }
+}
+
+.tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+.tag {
+  background: var(--bg3);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 13px;
+
+  button {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0 0 0 4px;
+
+    &:hover { color: var(--danger); }
+  }
+}
+.tag-form input { padding: 3px 10px; border-radius: 999px; font-size: 13px; width: 90px; }
+
+.actions { display: flex; gap: 8px; margin-top: 6px; }
+
+// --- modal action row + collapsible details ---
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  .tags { margin: 6px 0; flex: 1; }
+}
+.tag { font-size: 12px; padding: 2px 9px; }
+.actions { margin-top: 0; }
+.meta-details {
+  text-align: center;
+  margin-top: 4px;
+
+  summary {
+    list-style: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+    padding: 2px 0;
+
+    &::-webkit-details-marker { display: none; }
+  }
+
+  &[open] summary { transform: rotate(180deg); }
+
+  p { text-align: left; font-size: 13px; margin: 8px 0 0; word-break: break-all; }
+  a { color: var(--accent); }
+}
+
+// --- settings / about modals ---
+.modal-box.panel {
+  width: #{"min(680px, 94vw)"};
+  padding: 22px 26px;
+  overflow-y: auto;
+
+  h2 { margin: 0 0 12px; }
+  h3 { margin: 18px 0 6px; }
+  code { background: var(--bg3); padding: 1px 6px; border-radius: 4px; }
+  a { color: var(--accent); }
+}
+
+.about { text-align: center; }
+.about-logo { font-size: 64px; margin: 20px 0 0; }

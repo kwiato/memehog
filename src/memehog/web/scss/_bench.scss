@@ -1,0 +1,45 @@
+// --- model benchmark (AI models tab + results modal) ---
+.bench-sample {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  input { width: 64px; }
+}
+.modal-box.bench-results { width: #{"min(1100px, 96vw)"}; }
+.bench-summary {
+  border-collapse: collapse;
+  margin: 10px 0 16px;
+
+  th,
+  td {
+    text-align: left;
+    padding: 6px 14px 6px 0;
+    border-bottom: 1px solid var(--bg3);
+    font-size: 14px;
+  }
+}
+.bench-grid-wrap { overflow-x: auto; }
+.bench-grid {
+  border-collapse: collapse;
+  width: 100%;
+
+  th,
+  td {
+    vertical-align: top;
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid var(--bg3);
+    font-size: 13px;
+    min-width: 180px;
+  }
+}
+.bench-thumb {
+  min-width: 96px;
+
+  img { width: 96px; border-radius: 6px; }
+}
+.bench-desc { margin: 0 0 4px; }
+.bench-ocr { margin: 0 0 4px; font-size: 12px; }
+.bench-ms { margin: 0; font-size: 12px; }
+.bench-error { color: var(--danger); font-size: 12px; }

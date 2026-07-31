@@ -1,0 +1,17 @@
+// Memehog stylesheet — SCSS sources.
+//
+// Compiled into ../static/style.css (checked in) by scripts/build_css.py:
+//
+//     pip install -e .[dev]
+//     python scripts/build_css.py
+//
+// Theme colors live in _variables.scss and are emitted as CSS custom
+// properties; override the $variables there to reskin.
+
+@import "variables";
+@import "base";
+@import "topbar";
+@import "gallery";
+@import "modal";
+@import "settings";
+@import "bench";

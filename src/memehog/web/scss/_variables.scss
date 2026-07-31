@@ -1,0 +1,28 @@
+// Theme palette — override these to reskin the app; they are emitted as CSS
+// custom properties below, which the rest of the stylesheet consumes.
+$bg: #14151a !default;
+$bg2: #1e2027 !default;
+$bg3: #2a2d36 !default;
+$fg: #e8e9ec !default;
+$muted: #8a8f9c !default;
+$accent: #e0743c !default;
+$danger: #d84a4a !default;
+$radius: 10px !default;
+
+// Status chips / test results.
+$ok-bg: #1d3323 !default;
+$ok-fg: #7fd695 !default;
+$pending-bg: #38301a !default;
+$pending-fg: #e6c35c !default;
+$spicy-bg: #3a1f14 !default;
+
+:root {
+  --bg: #{$bg};
+  --bg2: #{$bg2};
+  --bg3: #{$bg3};
+  --fg: #{$fg};
+  --muted: #{$muted};
+  --accent: #{$accent};
+  --danger: #{$danger};
+  --radius: #{$radius};
+}
