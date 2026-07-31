@@ -1,10 +1,12 @@
 <div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
   <div class="modal-box panel">
     <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
-    <h2>＋ Add AI model</h2>
+    <h2>{{ '✏️ Edit AI model' if profile else '＋ Add AI model' }}</h2>
 
-    <form class="vlm-form" hx-post="/ui/vlm/profiles" hx-target="#profiles" hx-swap="innerHTML"
-          hx-on::after-request="if (event.detail.successful) document.getElementById('modal').innerHTML = ''">
+    <form class="vlm-form"
+          hx-post="{{ '/ui/vlm/profiles/%d'|format(profile.id) if profile else '/ui/vlm/profiles' }}"
+          hx-target="#profiles" hx-swap="innerHTML"
+          hx-on::after-request="if (event.detail.elt === this && event.detail.successful) document.getElementById('modal').innerHTML = ''">
       <label>Provider preset
         <select id="vlm-provider" onchange="vlmApplyPreset(this.value)">
           <option value="">— custom —</option>
@@ -18,25 +20,29 @@
       <div id="vlm-preset-info" class="preset-info" hidden></div>
       <div class="vlm-row">
         <label>Name
-          <input type="text" name="name" id="vlm-name" placeholder="e.g. gemini-flash">
+          <input type="text" name="name" id="vlm-name" placeholder="e.g. gemini-flash"
+                 value="{{ profile.name if profile else '' }}">
         </label>
         <label>Model
           <input type="text" name="model" id="vlm-model" list="vlm-models"
-                 placeholder="e.g. gemini-3.5-flash" required>
+                 placeholder="e.g. gemini-3.5-flash" required
+                 value="{{ profile.model if profile else '' }}">
           <datalist id="vlm-models"></datalist>
         </label>
       </div>
       <label>Endpoint (base URL)
-        <input type="text" name="base_url" id="vlm-base-url" placeholder="https://…/v1" required>
+        <input type="text" name="base_url" id="vlm-base-url" placeholder="https://…/v1" required
+               value="{{ profile.base_url if profile else '' }}">
       </label>
       <label>API key
-        <input type="password" name="api_key" placeholder="paste your API key" autocomplete="off">
+        <input type="password" name="api_key" placeholder="paste your API key" autocomplete="off"
+               value="{{ profile.api_key if profile else '' }}">
       </label>
       <div class="vlm-actions">
         <button class="btn" type="button" hx-post="/ui/settings/vlm/test"
                 hx-include="closest form" hx-target="#vlm-test-result"
-                hx-swap="innerHTML">🧪 Test connection</button>
-        <button class="btn primary" type="submit">Save model</button>
+                hx-swap="innerHTML" hx-disabled-elt="this">🧪 Test connection<span class="spin"></span></button>
+        <button class="btn primary" type="submit">{{ 'Save changes' if profile else 'Save model' }}</button>
         <span id="vlm-test-result"></span>
       </div>
     </form>

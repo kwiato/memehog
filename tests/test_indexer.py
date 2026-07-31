@@ -170,6 +170,29 @@ async def test_saved_profile_drives_the_indexer(
         assert [h.id for h in hits] == [item.id]
 
 
+async def test_profile_edit_flow(client):
+    await client.post(
+        "/ui/vlm/profiles",
+        data={"name": "router", "base_url": "https://openrouter.test/v1",
+              "model": "openrouter/free", "api_key": "k1"},
+    )
+    resp = await client.get("/ui/vlm/profiles/1/edit")
+    assert resp.status_code == 200
+    assert 'value="router"' in resp.text
+    assert 'value="openrouter/free"' in resp.text
+    assert "Edit AI model" in resp.text
+
+    resp = await client.post(
+        "/ui/vlm/profiles/1",
+        data={"name": "qwen-free", "base_url": "https://openrouter.test/v1",
+              "model": "qwen/qwen3-vl:free", "api_key": "k1"},
+    )
+    assert resp.status_code == 200
+    assert "qwen-free" in resp.text
+    assert "qwen/qwen3-vl:free" in resp.text
+    assert "router" not in resp.text.replace("openrouter.test", "")
+
+
 async def test_deleting_active_profile_disables_indexing(
     client, settings, session_factory, search
 ):

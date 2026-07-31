@@ -182,7 +182,44 @@ async def _profiles_response(request: Request, session: AsyncSession):
 
 @router.get("/ui/vlm/profiles/new", response_class=HTMLResponse)
 async def vlm_profile_modal(request: Request):
-    return templates.TemplateResponse(request, "partials/vlm_profile_modal.html", {})
+    return templates.TemplateResponse(
+        request, "partials/vlm_profile_modal.html", {"profile": None}
+    )
+
+
+@router.get("/ui/vlm/profiles/{profile_id}/edit", response_class=HTMLResponse)
+async def vlm_profile_edit_modal(
+    request: Request,
+    profile_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    profile = await session.get(VlmProfile, profile_id)
+    if profile is None:
+        raise HTTPException(404, "Profile not found")
+    return templates.TemplateResponse(
+        request, "partials/vlm_profile_modal.html", {"profile": profile}
+    )
+
+
+@router.post("/ui/vlm/profiles/{profile_id}", response_class=HTMLResponse)
+async def vlm_profile_update(
+    request: Request,
+    profile_id: int,
+    name: str = Form(""),
+    base_url: str = Form(...),
+    model: str = Form(...),
+    api_key: str = Form(""),
+    session: AsyncSession = Depends(get_session),
+):
+    profile = await session.get(VlmProfile, profile_id)
+    if profile is None:
+        raise HTTPException(404, "Profile not found")
+    profile.name = (name.strip() or model.strip())[:128]
+    profile.base_url = base_url.strip()
+    profile.model = model.strip()
+    profile.api_key = api_key.strip()
+    await session.commit()
+    return await _profiles_response(request, session)
 
 
 @router.post("/ui/vlm/profiles", response_class=HTMLResponse)
