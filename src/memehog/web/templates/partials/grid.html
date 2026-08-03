@@ -4,6 +4,7 @@
        data-ar="{{ '%.4f' | format(item.height / item.width) if item.width and item.height else '1' }}"
        data-media="/media/{{ item.filename }}"
        data-w="{{ item.width or 1600 }}" data-h="{{ item.height or 1600 }}"
+       data-mtype="{{ item.media_type }}"
        {% if item.media_type == 'video' %}data-video="1"{% endif %}>
     {% if item.thumb_filename %}
       <img src="/thumbs/{{ item.thumb_filename }}" alt="{{ item.caption or 'meme' }}" loading="lazy" decoding="async">

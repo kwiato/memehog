@@ -724,6 +724,49 @@ async def item_reindex(
     return await _item_info_response(request, session, item_id, notices=notices)
 
 
+@router.get("/ui/items/{item_id}/crop", response_class=HTMLResponse)
+async def crop_modal(
+    request: Request,
+    item_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    item = await items_svc.get_item(session, item_id)
+    if item is None:
+        raise HTTPException(404, "Item not found")
+    if item.media_type != "image":
+        raise HTTPException(400, "Only still images can be cropped")
+    return templates.TemplateResponse(
+        request, "partials/crop_modal.html", {"item": item}
+    )
+
+
+@router.post("/ui/items/{item_id}/crop")
+async def crop_apply(
+    item_id: int,
+    file: UploadFile,
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+    search: SearchBackend = Depends(get_search),
+):
+    item = await items_svc.get_item(session, item_id)
+    if item is None:
+        raise HTTPException(404, "Item not found")
+    if item.media_type != "image":
+        raise HTTPException(400, "Only still images can be cropped")
+    suffix = ".png" if (file.content_type or "") == "image/png" else ".jpg"
+    settings.tmp_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = settings.tmp_dir / f"crop-{uuid.uuid4().hex[:8]}{suffix}"
+    with tmp_path.open("wb") as fh:
+        while chunk := await file.read(1024 * 1024):
+            fh.write(chunk)
+    ok, message = await items_svc.replace_item_file(
+        session, settings, search, item, tmp_path
+    )
+    if not ok:
+        return JSONResponse({"ok": False, "error": message}, status_code=409)
+    return JSONResponse({"ok": True})
+
+
 @router.post("/ui/upload")
 async def upload(
     request: Request,

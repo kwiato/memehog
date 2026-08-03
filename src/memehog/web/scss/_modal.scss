@@ -130,5 +130,15 @@
   a { color: var(--accent); }
 }
 
+// --- crop modal (Cropper.js) ---
+.modal-box.crop-box { width: #{"min(900px, 94vw)"}; }
+.crop-stage {
+  max-height: 62vh;
+  overflow: hidden;
+  margin-bottom: 12px;
+
+  img { display: block; max-width: 100%; }
+}
+
 .about { text-align: center; }
 .about-logo { font-size: 64px; margin: 20px 0 0; }

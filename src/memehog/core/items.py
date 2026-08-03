@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+from pathlib import Path
 
 from sqlalchemy import case
 from sqlalchemy import delete as sa_delete
@@ -13,6 +14,7 @@ from ..config import Settings
 from ..db.models import Item, ItemTag, Tag
 from ..search.base import SearchBackend
 from .library import SPICY_TAG, delete_item_files
+from .media import make_thumbnail, probe, sha256_file
 
 PAGE_SIZE = 60
 
@@ -130,6 +132,55 @@ async def all_tags(session: AsyncSession, include_spicy: bool = False) -> list[T
     if not include_spicy:
         stmt = stmt.where(Tag.name != SPICY_TAG)
     return list((await session.scalars(stmt)).all())
+
+
+async def replace_item_file(
+    session: AsyncSession,
+    settings: Settings,
+    search: SearchBackend,
+    item: Item,
+    src_path: Path,
+) -> tuple[bool, str]:
+    """Swap an item's media file for a new version (e.g. a crop): new sha,
+    new filename in the same folder, fresh thumbnail, FTS reindex. Returns
+    (ok, message) — a content collision with another item refuses the swap."""
+    new_sha = await asyncio.to_thread(sha256_file, src_path)
+    collision = await session.scalar(
+        select(Item).where(Item.sha256 == new_sha, Item.id != item.id)
+    )
+    if collision is not None:
+        src_path.unlink(missing_ok=True)
+        return False, f"identical to meme #{collision.id} — nothing changed"
+
+    old_rel, old_thumb = item.filename, item.thumb_filename
+    new_rel = str(
+        Path(old_rel).parent / f"{new_sha[:16]}{src_path.suffix.lower()}"
+    ).replace("\\", "/")
+    dest = settings.library_dir / new_rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(shutil.move, str(src_path), str(dest))
+
+    info = await asyncio.to_thread(probe, dest)
+    new_thumb = f"{new_sha[:16]}.jpg"
+    thumb_ok = await asyncio.to_thread(
+        make_thumbnail, dest, settings.thumbs_dir / new_thumb, info.media_type
+    )
+
+    item.sha256 = new_sha
+    item.filename = new_rel
+    item.mime = info.mime
+    item.file_size = dest.stat().st_size
+    item.width = info.width
+    item.height = info.height
+    item.thumb_filename = new_thumb if thumb_ok else None
+    await search.index_item(session, item, tags=[t.name for t in item.tags])
+    await session.commit()
+
+    if old_rel != new_rel:
+        (settings.library_dir / old_rel).unlink(missing_ok=True)
+    if old_thumb and old_thumb != new_thumb:
+        (settings.thumbs_dir / old_thumb).unlink(missing_ok=True)
+    return True, new_rel
 
 
 async def tag_stats(session: AsyncSession) -> list[dict]:
