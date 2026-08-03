@@ -101,9 +101,9 @@ async def test_ui_spicy_toggle_endpoint(client):
 
     # hidden from the default grid, visible in spicy mode
     grid = await client.get("/ui/items", params={"page": 1})
-    assert 'hx-get="/ui/items/' + str(item_id) not in grid.text
+    assert f'data-id="{item_id}"' not in grid.text
     grid = await client.get("/ui/items", params={"page": 1, "spicy": "1"})
-    assert f'/ui/items/{item_id}/detail' in grid.text
+    assert f'data-id="{item_id}"' in grid.text
 
 
 async def test_ui_upload_spicy(client):
@@ -119,8 +119,8 @@ async def test_ui_upload_spicy(client):
     assert resp.json() == {"added": 1, "duplicates": 0, "queued": 0}
 
     grid = await client.get("/ui/items", params={"page": 1})
-    assert "/detail" not in grid.text
+    assert 'data-id="1"' not in grid.text
     grid = await client.get("/ui/items", params={"page": 1, "spicy": "1"})
-    assert "/detail" in grid.text
+    assert 'data-id="1"' in grid.text
     # the file itself is served from the spicy subfolder
     assert "spicy/" in (await client.get("/ui/items/1/detail")).text

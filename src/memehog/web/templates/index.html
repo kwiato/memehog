@@ -1,4 +1,7 @@
 {% extends "base.html" %}
+{% block head %}
+<link rel="stylesheet" href="/static/vendor/photoswipe/photoswipe.css">
+{% endblock %}
 {% block content %}
 <header class="topbar">
   <h1><a class="logo" href="/">🐗 Memehog</a> <span class="count">{{ count }} items</span></h1>
@@ -143,55 +146,9 @@
     if (e.key === 'Escape') closeUpload();
   });
 
-  // --- prev/next navigation in the detail lightbox -------------------------
-  // Order comes from the grid DOM, so it follows the active filters. At the
-  // end of the loaded cards the infinite-scroll sentinel is triggered to
-  // fetch the next page before advancing.
+  // Cards in DOM order — this is the lightbox's data source, so navigation
+  // follows the active filters.
   const gridCards = () => Array.from(document.querySelectorAll('#grid .card[data-id]'));
-
-  function navigateDetail(dir) {
-    const root = document.querySelector('#modal [data-item-id]');
-    if (!root) return;
-    const cards = gridCards();
-    const idx = cards.findIndex((c) => c.dataset.id === root.dataset.itemId);
-    if (idx === -1) return;
-    const target = cards[idx + dir];
-    if (target) {
-      htmx.ajax('GET', `/ui/items/${target.dataset.id}/detail`, '#modal');
-      return;
-    }
-    const sentinel = document.querySelector('#grid .sentinel');
-    if (dir === 1 && sentinel) {
-      document.body.addEventListener(
-        'htmx:afterSettle', () => navigateDetail(1), { once: true }
-      );
-      htmx.trigger(sentinel, 'revealed');
-    }
-  }
-
-  function updateArrows() {
-    const root = document.querySelector('#modal [data-item-id]');
-    if (!root) return;
-    const cards = gridCards();
-    const idx = cards.findIndex((c) => c.dataset.id === root.dataset.itemId);
-    const prev = root.querySelector('.nav-arrow.prev');
-    const next = root.querySelector('.nav-arrow.next');
-    const lastLoaded = idx === cards.length - 1 && !document.querySelector('#grid .sentinel');
-    if (prev) prev.hidden = idx <= 0;
-    if (next) next.hidden = idx === -1 || lastLoaded;
-  }
-
-  document.body.addEventListener('htmx:afterSwap', (e) => {
-    if (e.target.id === 'modal') updateArrows();
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-    if (e.target.closest('input, textarea, select')) return;
-    if (!document.querySelector('#modal [data-item-id]')) return;
-    e.preventDefault();
-    navigateDetail(e.key === 'ArrowRight' ? 1 : -1);
-  });
 
   function updateCaptionRow() {
     const filled = fileInput.files.length > 0 || urlInput.value.trim() !== '';
@@ -347,6 +304,76 @@
     overlay.classList.remove('active');
     if (!e.dataTransfer.files.length) return;
     enqueueFiles(Array.from(e.dataTransfer.files));
+  });
+</script>
+
+<script type="module">
+  // --- PhotoSwipe lightbox (zoom/pinch/swipe) with a tags+actions bar ------
+  import PhotoSwipeLightbox from '/static/vendor/photoswipe/photoswipe-lightbox.esm.min.js';
+  import PhotoSwipeVideoPlugin from '/static/vendor/photoswipe/photoswipe-video-plugin.esm.min.js';
+
+  function cardItemData(card) {
+    const data = {
+      memeId: card.dataset.id,
+      width: parseInt(card.dataset.w, 10) || 1600,
+      height: parseInt(card.dataset.h, 10) || 1600,
+      msrc: card.querySelector('img')?.src,
+    };
+    if (card.dataset.video === '1') {
+      data.type = 'video';
+      data.videoSrc = card.dataset.media;
+    } else {
+      data.src = card.dataset.media;
+    }
+    return data;
+  }
+
+  const lightbox = new PhotoSwipeLightbox({
+    pswpModule: () => import('/static/vendor/photoswipe/photoswipe.esm.min.js'),
+    bgOpacity: 0.92,
+    // Keep the image clear of the tags/actions bar at the bottom.
+    padding: { top: 16, bottom: 108, left: 0, right: 0 },
+  });
+  new PhotoSwipeVideoPlugin(lightbox, {});
+
+  // Live data source read from the grid DOM: pages appended by the infinite
+  // scroll are picked up mid-gallery, so you can swipe through everything.
+  lightbox.addFilter('numItems', () => gridCards().length);
+  lightbox.addFilter('itemData', (itemData, index) => {
+    const card = gridCards()[index];
+    return card ? cardItemData(card) : itemData;
+  });
+
+  // Tags + actions bar under the image, loaded per slide via htmx so tag
+  // add/remove, 🔥 and delete all work inside the lightbox.
+  lightbox.on('uiRegister', () => {
+    lightbox.pswp.ui.registerElement({
+      name: 'meme-bar',
+      className: 'pswp-meme-bar',
+      appendTo: 'root',
+      onInit: (el, pswp) => {
+        el.id = 'pswp-meme-bar';
+        pswp.on('change', () => {
+          const id = pswp.currSlide?.data?.memeId;
+          if (!id) return;
+          el.innerHTML = '';
+          htmx.ajax('GET', `/ui/items/${id}/detail`,
+                    { target: '#pswp-meme-bar', swap: 'innerHTML' });
+          // Fetch the next grid page before the user swipes off the end.
+          if (pswp.currIndex >= gridCards().length - 3) {
+            const sentinel = document.querySelector('#grid .sentinel');
+            if (sentinel) htmx.trigger(sentinel, 'revealed');
+          }
+        });
+      },
+    });
+  });
+  lightbox.init();
+
+  document.getElementById('grid').addEventListener('click', (e) => {
+    const card = e.target.closest('.card[data-id]');
+    if (!card) return;
+    lightbox.loadAndOpen(gridCards().indexOf(card));
   });
 </script>
 {% endblock %}
