@@ -97,7 +97,9 @@ def _parse_response(content: str) -> tuple[str, str, list[str]]:
     match = _JSON_RE.search(content)
     if not match:
         raise ValueError(f"no JSON object in VLM response: {content[:200]!r}")
-    data = json.loads(match.group(0))
+    # strict=False: some models (pixtral among them) put literal newlines
+    # inside JSON strings when transcribing multi-line memes.
+    data = json.loads(match.group(0), strict=False)
     ocr = str(data.get("ocr_text") or "").strip()
     description = str(data.get("description") or "").strip()
     raw_tags = data.get("tags") or []

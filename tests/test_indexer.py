@@ -111,6 +111,24 @@ async def test_spicy_items_skipped_by_default(settings, session_factory, search)
         assert fresh.index_status == "pending"
 
 
+async def test_literal_newlines_in_json_strings_are_tolerated(
+    settings, session_factory, search
+):
+    """Some models emit raw newlines inside JSON strings (invalid JSON, but
+    trivially recoverable) when transcribing multi-line memes."""
+    vlm_settings(settings)
+    item = await ingest_png(session_factory, settings, search)
+
+    raw = '{"ocr_text": "linia pierwsza\nlinia druga", "description": "wieloliniowy mem"}'
+    indexed = await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(raw)
+    )
+    assert indexed == 1
+    async with session_factory() as session:
+        hits = await items_svc.list_items(session, search, q="wieloliniowy")
+        assert [h.id for h in hits] == [item.id]
+
+
 async def test_json_in_markdown_fences_is_tolerated(settings, session_factory, search):
     vlm_settings(settings)
     item = await ingest_png(session_factory, settings, search)
