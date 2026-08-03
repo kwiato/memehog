@@ -6,9 +6,10 @@
 <header class="topbar">
   <h1><a class="logo" href="/">🐗 Memehog</a> <span class="count">{{ count }} items</span></h1>
   {# `change` on the form catches the bubbled events from every select and the
-     spicy input — `from:find select` would only watch the first one. #}
+     spicy input — `from:find select` would only watch the first one. `submit`
+     makes Enter search immediately instead of reloading the page. #}
   <form class="filters" hx-get="/ui/items" hx-target="#grid" hx-swap="innerHTML"
-        hx-trigger="input changed delay:400ms from:find input[type='search'], change">
+        hx-trigger="input changed delay:400ms from:find input[type='search'], change, submit">
     <input type="search" name="q" placeholder="Search memes…" autocomplete="off">
     <select name="type">
       <option value="">All types</option>
