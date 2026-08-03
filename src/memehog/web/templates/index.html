@@ -318,6 +318,11 @@
       width: parseInt(card.dataset.w, 10) || 1600,
       height: parseInt(card.dataset.h, 10) || 1600,
       msrc: card.querySelector('img')?.src,
+      // The card element gives PhotoSwipe the thumbnail bounds, which is
+      // what enables the zoom-from-thumbnail open/close animation (without
+      // it the lightbox silently falls back to a plain fade).
+      element: card,
+      thumbCropped: true,  // grid thumbs are object-fit: cover
     };
     if (card.dataset.video === '1') {
       data.type = 'video';
@@ -343,6 +348,10 @@
     const card = gridCards()[index];
     return card ? cardItemData(card) : itemData;
   });
+  lightbox.addFilter('thumbEl',
+    (thumbEl, data) => data.element?.querySelector('img') || thumbEl);
+  lightbox.addFilter('placeholderSrc',
+    (placeholderSrc, slide) => slide.data.msrc || placeholderSrc);
 
   // Tags + actions bar under the image, loaded per slide via htmx so tag
   // add/remove, 🔥 and delete all work inside the lightbox.
