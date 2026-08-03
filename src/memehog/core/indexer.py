@@ -14,7 +14,7 @@ import json
 import logging
 import re
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -24,7 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from ..config import Settings
-from ..db.models import Item, ItemTag, Tag, VlmProfile, VlmText
+from ..db.models import Item, ItemTag, Tag, VlmError, VlmProfile, VlmText, utcnow
 from ..search.base import SearchBackend
 from .appsettings import effective_settings, ensure_profile_from_env
 from .library import SPICY_TAG
@@ -186,6 +186,26 @@ async def _build_tags_hint(session: AsyncSession, settings: Settings) -> str:
         .limit(TAGS_HINT_LIMIT)
     )
     return ", ".join(name for (name,) in rows)
+
+
+async def _record_error(
+    session: AsyncSession,
+    profile_id: int,
+    item_id: int | None,
+    kind: str,
+    message: str,
+) -> None:
+    """Persist a failed attempt for the per-model health badge. Called after
+    session.rollback(), so it commits its own tiny transaction."""
+    session.add(
+        VlmError(
+            profile_id=profile_id,
+            item_id=item_id,
+            kind=kind,
+            message=message[:300],
+        )
+    )
+    await session.commit()
 
 
 def _profile_snapshot(profile: VlmProfile) -> SimpleNamespace:
@@ -358,6 +378,14 @@ async def run_indexing(
 
             tags_hint = await _build_tags_hint(session, settings)
 
+            # Old health-log entries have served their purpose.
+            await session.execute(
+                sa_delete(VlmError).where(
+                    VlmError.created_at < utcnow() - timedelta(days=7)
+                )
+            )
+            await session.commit()
+
             async with httpx.AsyncClient(timeout=120, transport=transport) as client:
                 for profile, item_ids in queues:
                     trial = settings.model_copy(
@@ -433,6 +461,10 @@ async def run_indexing(
                                         f"{detail} — skipping this model, "
                                         f"moving on"
                                     )
+                                    await _record_error(
+                                        session, profile.id, item_id,
+                                        "connection", f"{label}: {detail}",
+                                    )
                                     skip_profile = True
                                     break
                             if skip_profile:
@@ -447,6 +479,10 @@ async def run_indexing(
                                 f"{type(exc).__name__}: {str(exc)[:110]}"
                             )
                             await session.rollback()
+                            await _record_error(
+                                session, profile.id, item_id, "response",
+                                f"{type(exc).__name__}: {str(exc)[:250]}",
+                            )
                             consecutive_failures += 1
                             if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
                                 log.warning(
@@ -536,20 +572,28 @@ async def reindex_item(
                         session, trial, search, client, item, snap, tags_hint
                     )
                     results.append((snap.name, "ok" if ok else "no readable media"))
-                except httpx.HTTPStatusError as exc:
+                except (httpx.HTTPStatusError, httpx.TransportError) as exc:
                     await session.rollback()
-                    results.append(
-                        (snap.name,
-                         f"HTTP {exc.response.status_code}: "
-                         f"{exc.response.text[:100]}")
+                    if isinstance(exc, httpx.HTTPStatusError):
+                        detail = (
+                            f"HTTP {exc.response.status_code}: "
+                            f"{exc.response.text[:100]}"
+                        )
+                    else:
+                        detail = f"{type(exc).__name__}: {str(exc)[:100]}"
+                    await _record_error(
+                        session, snap.id, item_id, "connection", detail
                     )
+                    results.append((snap.name, detail))
                 except Exception as exc:  # noqa: BLE001 - report, keep going
                     log.exception("Manual reindex failed for item %s (%s)",
                                   item_id, snap.name)
                     await session.rollback()
-                    results.append(
-                        (snap.name, f"{type(exc).__name__}: {str(exc)[:100]}")
+                    detail = f"{type(exc).__name__}: {str(exc)[:100]}"
+                    await _record_error(
+                        session, snap.id, item_id, "response", detail
                     )
+                    results.append((snap.name, detail))
                 # A rollback expires the ORM item — reload for the next model.
                 item = await session.get(Item, item_id)
                 if item is None:

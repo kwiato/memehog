@@ -1,0 +1,29 @@
+<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
+  <div class="modal-box panel error-log">
+    <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
+    <h2>📋 Error log — {{ profile.name }}</h2>
+    <p class="muted">
+      <code>{{ profile.model }}</code> · last {{ errors|length }} error(s);
+      entries older than a week are pruned automatically.
+      <span class="health-btn error">●</span> connection ·
+      <span class="health-btn warn">●</span> bad response
+    </p>
+    {% if errors %}
+    <table class="clients-table">
+      <thead><tr><th></th><th>When</th><th>Item</th><th>Message</th></tr></thead>
+      <tbody>
+        {% for e in errors %}
+        <tr>
+          <td><span class="health-btn {{ 'error' if e.kind == 'connection' else 'warn' }}">●</span></td>
+          <td class="muted">{{ e.created_at.strftime('%m-%d %H:%M') }}</td>
+          <td class="muted">{{ '#' ~ e.item_id if e.item_id else '—' }}</td>
+          <td class="error-message">{{ e.message }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No errors recorded for this model. 🎉</p>
+    {% endif %}
+  </div>
+</div>

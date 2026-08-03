@@ -450,6 +450,72 @@ async def test_item_info_shows_per_model_data(
     assert f"Meme #{item.id}" in resp.text
 
 
+async def test_grid_shows_index_status_dot(client, settings, session_factory, search):
+    vlm_settings(settings)
+    item = await ingest_png(session_factory, settings, search)
+
+    grid = await client.get("/ui/items", params={"page": 1})
+    assert 'index-dot pending' in grid.text
+
+    reply = {"ocr_text": "", "description": "opis"}
+    await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(reply)
+    )
+    grid = await client.get("/ui/items", params={"page": 1})
+    assert 'index-dot indexed' in grid.text
+    assert f'data-id="{item.id}"' in grid.text
+
+
+async def test_profile_health_badge_and_error_log(
+    client, settings, session_factory, search
+):
+    from sqlalchemy import select
+
+    from memehog.db.models import VlmError
+
+    vlm_settings(settings)
+    await ingest_png(session_factory, settings, search)
+
+    # connection-class failure (bad key) → red badge + log entry
+    await run_indexing(
+        session_factory, settings, search,
+        transport=vlm_transport({"error": "bad key"}, status_code=403),
+    )
+    async with session_factory() as session:
+        errors = list(await session.scalars(select(VlmError)))
+        assert len(errors) == 1
+        assert errors[0].kind == "connection"
+        assert "403" in errors[0].message
+
+    page = await client.get("/settings?tab=ai")
+    assert "health-btn error" in page.text
+
+    log_resp = await client.get("/ui/vlm/profiles/1/errors")
+    assert log_resp.status_code == 200
+    assert "403" in log_resp.text
+    assert "Error log" in log_resp.text
+
+
+async def test_junk_response_records_response_error(
+    settings, session_factory, search
+):
+    from sqlalchemy import select
+
+    from memehog.db.models import VlmError
+
+    vlm_settings(settings)
+    await ingest_png(session_factory, settings, search)
+    await run_indexing(
+        session_factory, settings, search,
+        transport=vlm_transport("User Safety: safe"),  # moderation junk
+    )
+    async with session_factory() as session:
+        errors = list(await session.scalars(select(VlmError)))
+        assert len(errors) == 1
+        assert errors[0].kind == "response"
+        assert "ValueError" in errors[0].message
+
+
 async def test_manual_reindex_from_info(settings, session_factory, search):
     from sqlalchemy import select
 

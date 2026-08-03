@@ -182,6 +182,21 @@ body.spicy-mode .drop-spicy { display: block; }
   font-size: 12px;
 }
 
+// AI indexing status: gray = waiting, green = indexed, red = failed.
+.index-dot {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.9);
+
+  &.indexed { background: $ok-fg; }
+  &.failed { background: var(--danger); }
+}
+
 .empty { grid-column: 1 / -1; text-align: center; padding: 60px 0; }
 .sentinel { grid-column: 1 / -1; height: 1px; }
 

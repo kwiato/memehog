@@ -1,6 +1,6 @@
 <table class="clients-table">
   <thead>
-    <tr><th>Active</th><th>Name</th><th>Model</th><th>Endpoint</th><th></th><th></th></tr>
+    <tr><th>Active</th><th>Name</th><th>Model</th><th>Endpoint</th><th>Status</th><th></th><th></th></tr>
   </thead>
   <tbody>
     {% for p in profiles %}
@@ -15,6 +15,19 @@
       <td><strong>{{ p.name }}</strong></td>
       <td><code>{{ p.model }}</code></td>
       <td class="muted profile-url">{{ p.base_url }}</td>
+      <td>
+        {% set h = health.get(p.id) %}
+        {% if not h or h.total == 0 %}
+        <span class="health ok" title="No errors recorded">●</span>
+        {% else %}
+        <button class="health-btn {{ h.level }}"
+                hx-get="/ui/vlm/profiles/{{ p.id }}/errors"
+                hx-target="#modal" hx-swap="innerHTML"
+                title="{{ h.connection }} connection / {{ h.response }} bad-response error(s) in the last 24h — click for the log">
+          ● {{ h.connection + h.response if h.level != 'ok' else h.total }}
+        </button>
+        {% endif %}
+      </td>
       <td><span id="profile-test-{{ p.id }}"></span></td>
       <td class="row-actions">
         <button class="btn small" hx-post="/ui/vlm/profiles/{{ p.id }}/test"
@@ -31,7 +44,7 @@
     </tr>
     {% endfor %}
     {% if not profiles %}
-    <tr><td colspan="6" class="muted">No models saved yet — add one below.</td></tr>
+    <tr><td colspan="7" class="muted">No models saved yet — add one below.</td></tr>
     {% endif %}
   </tbody>
 </table>

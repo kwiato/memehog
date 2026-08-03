@@ -4,11 +4,12 @@ import asyncio
 import html
 import io
 import uuid
+from datetime import timedelta
 from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from fastapi.responses import (
     HTMLResponse,
     JSONResponse,
@@ -28,7 +29,16 @@ from ..core.indexer import STATUS as indexer_status
 from ..core.indexer import describe_image, reindex_item, run_indexing
 from ..core.library import ingest_file
 from ..core.queue import DownloadQueue
-from ..db.models import Item, ItemTag, Tag, VlmProfile, VlmSample, VlmText
+from ..db.models import (
+    Item,
+    ItemTag,
+    Tag,
+    VlmError,
+    VlmProfile,
+    VlmSample,
+    VlmText,
+    utcnow,
+)
 from ..search.base import SearchBackend
 from .deps import get_queue, get_search, get_session, get_settings
 
@@ -93,6 +103,7 @@ async def settings_page(
         "clients": await clients_svc.list_clients(session),
         "owners": sorted(settings.allowed_ids),
         "scan_hour": _cron_hour(cron),
+        "health": await _profile_health(session),
         "bench": bench_svc.BENCH_STATUS,
         "version": __version__,
         "build_sha": settings.memehog_build_sha,
@@ -154,11 +165,76 @@ async def set_vlm(
 # --- VLM model profiles (AI models tab) --------------------------------------
 
 
+# A profile goes 🟡 at this many junk responses within the health window.
+HEALTH_WARN_RESPONSES = 3
+HEALTH_WINDOW_HOURS = 24
+
+
+async def _profile_health(session: AsyncSession) -> dict[int, dict]:
+    """Per-profile error stats: recent (24h) counts by kind drive the badge
+    color, the all-time total decides whether the log link shows at all."""
+    since = utcnow() - timedelta(hours=HEALTH_WINDOW_HOURS)
+    health: dict[int, dict] = {}
+
+    def entry(pid: int) -> dict:
+        return health.setdefault(
+            pid, {"connection": 0, "response": 0, "total": 0}
+        )
+
+    recent = await session.execute(
+        select(VlmError.profile_id, VlmError.kind, func.count())
+        .where(VlmError.created_at >= since)
+        .group_by(VlmError.profile_id, VlmError.kind)
+    )
+    for pid, kind, count in recent:
+        entry(pid)[kind] = count
+    totals = await session.execute(
+        select(VlmError.profile_id, func.count()).group_by(VlmError.profile_id)
+    )
+    for pid, count in totals:
+        entry(pid)["total"] = count
+    for stats in health.values():
+        if stats["connection"]:
+            stats["level"] = "error"
+        elif stats["response"] >= HEALTH_WARN_RESPONSES:
+            stats["level"] = "warn"
+        else:
+            stats["level"] = "ok"
+    return health
+
+
 async def _profiles_response(request: Request, session: AsyncSession):
     return templates.TemplateResponse(
         request,
         "partials/vlm_profiles.html",
-        {"profiles": await _list_profiles(session)},
+        {
+            "profiles": await _list_profiles(session),
+            "health": await _profile_health(session),
+        },
+    )
+
+
+@router.get("/ui/vlm/profiles/{profile_id}/errors", response_class=HTMLResponse)
+async def vlm_profile_errors(
+    request: Request,
+    profile_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    profile = await session.get(VlmProfile, profile_id)
+    if profile is None:
+        raise HTTPException(404, "Profile not found")
+    errors = list(
+        await session.scalars(
+            select(VlmError)
+            .where(VlmError.profile_id == profile_id)
+            .order_by(VlmError.created_at.desc())
+            .limit(50)
+        )
+    )
+    return templates.TemplateResponse(
+        request,
+        "partials/vlm_errors.html",
+        {"profile": profile, "errors": errors},
     )
 
 

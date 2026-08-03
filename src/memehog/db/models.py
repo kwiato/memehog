@@ -134,6 +134,27 @@ class VlmText(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class VlmError(Base):
+    """A failed indexing attempt, kept for the per-model health badge.
+
+    kind: "response" — the model answered but with junk (unparseable JSON,
+    moderation output...); "connection" — HTTP errors / timeouts that survived
+    the retries. Pruned after a week by the nightly run."""
+
+    __tablename__ = "vlm_errors"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("vlm_profiles.id", ondelete="CASCADE"), index=True
+    )
+    item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("items.id", ondelete="SET NULL"), default=None
+    )
+    kind: Mapped[str] = mapped_column(String(16))  # response | connection
+    message: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class VlmSample(Base):
     """One vision model's take on one meme, produced by the settings-page
     benchmark — stored so different models can be compared side by side."""
