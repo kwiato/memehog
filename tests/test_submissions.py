@@ -117,3 +117,26 @@ async def test_random_item_never_spicy(settings, session_factory, search):
             assert pick is not None and pick.id == normal.id
         # excluding the only candidate -> nothing to send
         assert await items_svc.random_item(session, exclude_id=normal.id) is None
+
+
+def test_is_nsfw_text():
+    from memehog.core.library import is_nsfw_text
+
+    assert is_nsfw_text("ale NSFW mem")
+    assert is_nsfw_text("nsfw")
+    assert is_nsfw_text("Nsfw, uwaga")
+    assert not is_nsfw_text("normalny mem")
+    assert not is_nsfw_text("")
+    assert not is_nsfw_text(None)
+
+
+async def test_nsfw_caption_lands_in_spicy(settings, session_factory, search):
+    async with session_factory() as session:
+        sub, reason = await _submit(
+            settings, session, "hot.png", "magenta", caption="troche NSFW"
+        )
+        assert reason == "ok"
+        item = await subs_svc.approve_submission(session, settings, search, sub)
+        assert item is not None
+        assert item.filename.startswith("spicy/")
+        assert "spicy" in {t.name for t in item.tags}

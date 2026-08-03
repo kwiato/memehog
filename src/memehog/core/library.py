@@ -21,6 +21,12 @@ log = logging.getLogger(__name__)
 SPICY_TAG = "spicy"
 
 
+def is_nsfw_text(text: str | None) -> bool:
+    """Marker convention: "nsfw" anywhere in a message/caption (any case)
+    files the meme straight into the spicy stash."""
+    return "nsfw" in (text or "").lower()
+
+
 async def ingest_file(
     session: AsyncSession,
     settings: Settings,

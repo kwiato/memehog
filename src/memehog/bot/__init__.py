@@ -18,7 +18,7 @@ from ..config import Settings
 from ..core import clients as clients_svc
 from ..core import items as items_svc
 from ..core import submissions as subs_svc
-from ..core.library import ingest_file
+from ..core.library import ingest_file, is_nsfw_text
 from ..core.queue import DownloadQueue
 from ..db.models import Item, Job
 from ..search.base import SearchBackend
@@ -33,6 +33,8 @@ HELP_TEXT = (
     "• a direct link to an image or video\n"
     "• a photo, video or GIF straight from your gallery\n\n"
     "…and I'll save it to your meme library.\n\n"
+    "Write \"nsfw\" anywhere in the caption and the meme goes straight "
+    "into the 🔥 spicy stash.\n\n"
     "Commands:\n"
     "/stats — library size\n"
     "/help — this message"
@@ -398,6 +400,7 @@ async def handle_media(
         await message.reply(f"❌ Couldn't download the file from Telegram: {exc}")
         return
 
+    spicy = is_nsfw_text(message.caption)
     async with session_factory() as session:
         item, created = await ingest_file(
             session,
@@ -407,11 +410,13 @@ async def handle_media(
             origin="telegram",
             caption=message.caption,
             uploader=_sender(message),
+            spicy=spicy,
         )
+    fire = " 🔥" if spicy else ""
     if created:
-        await message.reply(f"✅ Saved to the library (#{item.id}).")
+        await message.reply(f"✅ Saved to the library (#{item.id}).{fire}")
     else:
-        await message.reply(f"♻️ Already in the library (#{item.id}).")
+        await message.reply(f"♻️ Already in the library (#{item.id}).{fire}")
 
 
 @router.message(F.text | F.caption)
@@ -421,8 +426,11 @@ async def handle_links(message: Message, queue: DownloadQueue, **_: Any) -> None
         await message.reply("🤔 Send me a link or a media file. /help for details.")
         return
 
+    spicy = is_nsfw_text(message.text or message.caption)
     for url in urls:
-        status = await message.reply(f"⏳ Downloading…\n{url}")
+        status = await message.reply(
+            f"⏳ Downloading{' into 🔥' if spicy else ''}…\n{url}"
+        )
 
         async def on_done(job: Job, saved: list[Item], _status: Message = status) -> None:
             if job.status == "done":
@@ -436,7 +444,10 @@ async def handle_links(message: Message, queue: DownloadQueue, **_: Any) -> None
             except Exception:  # noqa: BLE001 - message may have been deleted
                 log.debug("Could not edit status message for job %s", job.id)
 
-        await queue.submit(url, origin="telegram", requested_by=_sender(message), callback=on_done)
+        await queue.submit(
+            url, origin="telegram", requested_by=_sender(message),
+            spicy=spicy, callback=on_done,
+        )
 
 
 async def run_bot(

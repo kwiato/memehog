@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import Settings
 from ..db.models import Item, Submission, utcnow
 from ..search.base import SearchBackend
-from .library import ingest_file
+from .library import ingest_file, is_nsfw_text
 from .media import sha256_file
 
 log = logging.getLogger(__name__)
@@ -94,6 +94,8 @@ async def approve_submission(
             origin="telegram",
             caption=submission.caption,
             uploader=submission.submitter_name or str(submission.submitter_id),
+            # Guests can self-mark: "nsfw" in the caption files it as spicy.
+            spicy=is_nsfw_text(submission.caption),
         )
     submission.status = "approved"
     submission.item_id = item.id if item is not None else None

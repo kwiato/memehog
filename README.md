@@ -94,7 +94,7 @@ Updating: *Recreate* the container with *Re-pull image* enabled (or use Watchtow
 - an Instagram post / reel / carousel link
 - a TikTok link
 - a direct link to an image or video file
-- a photo, video or GIF straight from your phone (the caption becomes searchable text)
+- a photo, video or GIF straight from your phone (the caption becomes searchable text; write `nsfw` anywhere in it and the meme lands straight in the 🔥 spicy stash — works for links and guest submissions too)
 
 **Web UI** — browse, search (`kot w kapeluszu` matches prefixes, so partial words work), filter by type/tag, click a meme for the [PhotoSwipe](https://photoswipe.com/) lightbox — pinch/scroll to zoom, swipe or use arrow keys to browse — with a bar underneath to tag, download, share or delete it (delete hides under the ⋮ menu, file details under the ⌄ arrow). The floating **＋ button** (bottom right) opens the upload dialog for files or a link to download — or skip it and **drag&drop files anywhere on the page**. The **🔥 button** switches to spicy-only view; while it's on, uploads and drops are saved as spicy right away. Mark or unmark an existing meme from its ⋮ menu. The **☰ menu** opens the Settings page (Telegram clients, AI indexing and model management, nightly maintenance hour) and About.
 
