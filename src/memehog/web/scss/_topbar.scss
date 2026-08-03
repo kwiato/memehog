@@ -21,8 +21,12 @@
   gap: 8px;
   flex: 1;
   min-width: 260px;
+  // Phones: long tag/model names blow up the selects' intrinsic width —
+  // let the row wrap and never let a select outgrow the container.
+  flex-wrap: wrap;
 
-  input[type="search"] { flex: 1; }
+  input[type="search"] { flex: 1; min-width: 140px; }
+  select { min-width: 0; max-width: 100%; }
 }
 
 .main-nav {

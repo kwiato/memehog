@@ -7,6 +7,12 @@
   label { display: flex; align-items: center; gap: 8px; }
 }
 
+// Wide tables (clients, model profiles, error log) scroll horizontally on
+// phones instead of stretching the page.
+#clients,
+#profiles,
+.modal-box.error-log { overflow-x: auto; }
+
 .clients-table {
   width: 100%;
   border-collapse: collapse;
