@@ -14,11 +14,14 @@
   <nav class="tabs">
     <a href="/settings" class="tab {{ 'active' if tab == 'general' else '' }}">⚙️ General</a>
     <a href="/settings?tab=ai" class="tab {{ 'active' if tab == 'ai' else '' }}">🤖 AI models</a>
+    <a href="/settings?tab=tags" class="tab {{ 'active' if tab == 'tags' else '' }}">🏷 Tags</a>
   </nav>
 
   <div class="tab-panel">
     {% if tab == 'ai' %}
       {% include "partials/settings_ai.html" %}
+    {% elif tab == 'tags' %}
+      {% include "partials/settings_tags.html" %}
     {% else %}
       {% include "partials/settings_general.html" %}
     {% endif %}

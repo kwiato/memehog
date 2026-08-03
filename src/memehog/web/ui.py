@@ -137,7 +137,8 @@ async def settings_page(
         session, appsettings.SCAN_CRON_KEY, settings.scan_cron
     )
     ctx = {
-        "tab": "ai" if tab == "ai" else "general",
+        "tab": tab if tab in ("ai", "tags") else "general",
+        "tag_stats": await items_svc.tag_stats(session),
         "clients": await clients_svc.list_clients(session),
         "owners": sorted(settings.allowed_ids),
         "scan_hour": _cron_hour(cron),
@@ -824,6 +825,37 @@ async def remove_tag(
         raise HTTPException(404, "Item not found")
     item = await items_svc.remove_tag(session, search, item, name)
     return await _detail_response(request, session, item)
+
+
+# --- tags management (settings page) -----------------------------------------
+
+
+async def _tags_panel_response(request: Request, session: AsyncSession):
+    return templates.TemplateResponse(
+        request,
+        "partials/settings_tags.html",
+        {"tag_stats": await items_svc.tag_stats(session)},
+    )
+
+
+@router.post("/ui/tags/{name}/delete", response_class=HTMLResponse)
+async def tags_delete(
+    request: Request,
+    name: str,
+    session: AsyncSession = Depends(get_session),
+    search: SearchBackend = Depends(get_search),
+):
+    await items_svc.delete_tag(session, search, name)
+    return await _tags_panel_response(request, session)
+
+
+@router.post("/ui/tags/clean", response_class=HTMLResponse)
+async def tags_clean(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    await items_svc.clean_unused_tags(session)
+    return await _tags_panel_response(request, session)
 
 
 # --- Telegram clients management (settings page) -----------------------------

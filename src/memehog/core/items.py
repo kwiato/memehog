@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import shutil
 
+from sqlalchemy import case
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -129,6 +130,72 @@ async def all_tags(session: AsyncSession, include_spicy: bool = False) -> list[T
     if not include_spicy:
         stmt = stmt.where(Tag.name != SPICY_TAG)
     return list((await session.scalars(stmt)).all())
+
+
+async def tag_stats(session: AsyncSession) -> list[dict]:
+    """All tags with usage counts, most-used first: name, items, ai_items."""
+    rows = await session.execute(
+        select(
+            Tag.name,
+            func.count(ItemTag.item_id),
+            func.coalesce(
+                func.sum(case((ItemTag.source == "ai", 1), else_=0)), 0
+            ),
+        )
+        .join(ItemTag, ItemTag.tag_id == Tag.id, isouter=True)
+        .group_by(Tag.id)
+        .order_by(func.count(ItemTag.item_id).desc(), Tag.name)
+    )
+    return [
+        {"name": name, "items": items, "ai_items": ai_items}
+        for name, items, ai_items in rows
+    ]
+
+
+async def delete_tag(
+    session: AsyncSession, search: SearchBackend, name: str
+) -> int:
+    """Remove a tag everywhere; returns how many items were affected.
+
+    The reserved spicy tag is never deleted this way — it drives file
+    placement and the hidden view."""
+    name = name.strip().lower()
+    if name == SPICY_TAG:
+        return 0
+    tag = await session.scalar(select(Tag).where(Tag.name == name))
+    if tag is None:
+        return 0
+    item_ids = list(
+        await session.scalars(
+            select(ItemTag.item_id).where(ItemTag.tag_id == tag.id)
+        )
+    )
+    await session.execute(sa_delete(ItemTag).where(ItemTag.tag_id == tag.id))
+    await session.execute(sa_delete(Tag).where(Tag.id == tag.id))
+    await session.flush()
+    session.expire_all()
+    for item_id in item_ids:
+        item = await get_item(session, item_id)
+        if item is not None:
+            await search.index_item(
+                session, item, tags=[t.name for t in item.tags]
+            )
+    await session.commit()
+    return len(item_ids)
+
+
+async def clean_unused_tags(session: AsyncSession) -> int:
+    """Delete every tag that isn't attached to any item; returns the count."""
+    used = select(ItemTag.tag_id).distinct()
+    unused_ids = list(
+        await session.scalars(
+            select(Tag.id).where(Tag.id.not_in(used), Tag.name != SPICY_TAG)
+        )
+    )
+    if unused_ids:
+        await session.execute(sa_delete(Tag).where(Tag.id.in_(unused_ids)))
+        await session.commit()
+    return len(unused_ids)
 
 
 async def delete_item(

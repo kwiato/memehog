@@ -13,6 +13,16 @@
 #profiles,
 .modal-box.error-log { overflow-x: auto; }
 
+.tags-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+
+  h3 { margin-top: 0; }
+  .btn { flex-shrink: 0; }
+}
+
 .clients-table {
   width: 100%;
   border-collapse: collapse;
