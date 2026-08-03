@@ -1,14 +1,18 @@
 <table class="clients-table">
   <thead>
-    <tr><th>Name</th><th>Model</th><th>Endpoint</th><th></th><th></th></tr>
+    <tr><th>Active</th><th>Name</th><th>Model</th><th>Endpoint</th><th></th><th></th></tr>
   </thead>
   <tbody>
     {% for p in profiles %}
     <tr>
       <td>
-        <strong>{{ p.name }}</strong>
-        {% if p.id == selected_profile_id %}<span class="status approved">active</span>{% endif %}
+        <label class="active-toggle" title="Active models index new memes every night, each keeping its own searchable text">
+          <input type="checkbox" {{ 'checked' if p.active else '' }}
+                 hx-post="/ui/vlm/profiles/{{ p.id }}/toggle"
+                 hx-target="#profiles" hx-swap="innerHTML">
+        </label>
       </td>
+      <td><strong>{{ p.name }}</strong></td>
       <td><code>{{ p.model }}</code></td>
       <td class="muted profile-url">{{ p.base_url }}</td>
       <td><span id="profile-test-{{ p.id }}"></span></td>
@@ -27,7 +31,7 @@
     </tr>
     {% endfor %}
     {% if not profiles %}
-    <tr><td colspan="5" class="muted">No models saved yet — add one below.</td></tr>
+    <tr><td colspan="6" class="muted">No models saved yet — add one below.</td></tr>
     {% endif %}
   </tbody>
 </table>

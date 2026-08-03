@@ -120,4 +120,11 @@
   a { color: var(--accent); }
 }
 .profile-url { font-size: 12px; word-break: break-all; }
+.active-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.active-models { font-size: 14px; margin: 4px 0; }
 .build-info { margin-top: 18px; font-size: 12px; }

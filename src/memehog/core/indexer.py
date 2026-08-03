@@ -16,16 +16,16 @@ import re
 from collections import deque
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from sqlalchemy.orm import selectinload
 
 from ..config import Settings
-from ..db.models import Item
+from ..db.models import Item, VlmProfile, VlmText
 from ..search.base import SearchBackend
-from .appsettings import effective_settings
+from .appsettings import effective_settings, ensure_profile_from_env
 from .media import make_thumbnail
 
 log = logging.getLogger(__name__)
@@ -152,28 +152,30 @@ async def describe_image(
 
 async def _index_one(
     session: AsyncSession,
-    settings: Settings,
+    trial: Settings,
     search: SearchBackend,
     client: httpx.AsyncClient,
     item: Item,
+    profile: SimpleNamespace,  # plain snapshot — survives session.rollback()
 ) -> bool:
-    jpeg = await asyncio.to_thread(_load_thumb_jpeg, settings, item)
+    jpeg = await asyncio.to_thread(_load_thumb_jpeg, trial, item)
     if jpeg is None:
         log.warning("Item %s: no readable media for VLM, marking failed", item.id)
         STATUS.note(f"Item {item.id}: no readable media — marked failed")
         item.index_status = "failed"
         await session.commit()
         return False
-    ocr, description = await describe_image(client, settings, jpeg)
+    ocr, description = await describe_image(client, trial, jpeg)
     fts_text = "\n".join(part for part in (ocr, description) if part)
-    await search.index_item(
-        session, item, tags=[t.name for t in item.tags], ocr_text=fts_text
-    )
+    session.add(VlmText(item_id=item.id, profile_id=profile.id, text=fts_text))
+    await search.index_vlm(session, item.id, profile.id, fts_text)
     item.index_status = "indexed"
     await session.commit()
-    log.info("Indexed item %s (%d chars OCR, %d chars description)",
-             item.id, len(ocr), len(description))
-    STATUS.note(f"Item {item.id}: ok — „{(description or ocr)[:70]}”")
+    log.info("Indexed item %s with %s (%d chars OCR, %d chars description)",
+             item.id, profile.name, len(ocr), len(description))
+    STATUS.note(
+        f"{profile.name} / item {item.id}: ok — „{(description or ocr)[:70]}”"
+    )
     return True
 
 
@@ -184,9 +186,12 @@ async def run_indexing(
     *,
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> int:
-    """Index pending items via the configured VLM; returns how many succeeded.
+    """Run every active model profile over the items it hasn't seen yet.
 
-    `transport` is injectable for tests.
+    Each profile keeps its own copy of the OCR/description text, so one
+    provider having a bad night doesn't leave memes unindexed — the other
+    active models still do their pass. Returns how many (item, model) pairs
+    were indexed. `transport` is injectable for tests.
     """
     if STATUS.running:
         log.info("VLM indexer already running — skipping this trigger")
@@ -194,129 +199,177 @@ async def run_indexing(
     STATUS.start()
 
     indexed = 0
-    consecutive_failures = 0
     try:
         async with session_factory() as session:
             # Settings saved in the web UI override the .env values.
             settings = await effective_settings(session, settings)
-            if not settings.vlm_enabled:
-                log.debug(
-                    "VLM indexer not configured (VLM_BASE_URL / VLM_MODEL) — skipping"
+            await ensure_profile_from_env(session, settings)
+            profiles = list(
+                await session.scalars(
+                    select(VlmProfile)
+                    .where(VlmProfile.active.is_(True))
+                    .order_by(VlmProfile.id)
                 )
-                STATUS.note("Not configured — set the endpoint and model first.")
+            )
+            if not profiles:
+                log.debug("VLM indexer: no active model profiles — skipping")
+                STATUS.note(
+                    "No active models — add or enable one in the AI models tab."
+                )
                 return 0
             delay = 60.0 / settings.vlm_rpm if settings.vlm_rpm > 0 else 0.0
 
-            # Only ids here — items are (re)fetched one by one inside the loop,
-            # so a session.rollback() after a failure can't leave us holding
-            # expired ORM objects (lazy refresh outside the async context).
-            stmt = (
-                select(Item.id)
-                .where(Item.index_status == "pending")
-                .order_by(Item.id)
-                .limit(settings.vlm_max_per_run)
-            )
-            if not settings.vlm_index_spicy:
-                stmt = stmt.where(Item.filename.not_like("spicy/%"))
-            item_ids = list(await session.scalars(stmt))
-            if not item_ids:
-                STATUS.note("Nothing to do — no pending items.")
+            # Per-profile work queues. Only plain values (id snapshots) are
+            # kept for the processing loop — a session.rollback() after a
+            # failure expires ORM objects, and touching one then blows up
+            # outside the async context.
+            queues: list[tuple[SimpleNamespace, list[int]]] = []
+            for orm_profile in profiles:
+                snap = SimpleNamespace(
+                    id=orm_profile.id,
+                    name=orm_profile.name,
+                    model=orm_profile.model,
+                    base_url=orm_profile.base_url,
+                    api_key=orm_profile.api_key,
+                )
+                done = select(VlmText.item_id).where(
+                    VlmText.profile_id == snap.id
+                )
+                stmt = (
+                    select(Item.id)
+                    .where(Item.index_status != "failed", Item.id.not_in(done))
+                    .order_by(Item.id)
+                    .limit(settings.vlm_max_per_run)
+                )
+                if not settings.vlm_index_spicy:
+                    stmt = stmt.where(Item.filename.not_like("spicy/%"))
+                ids = list(await session.scalars(stmt))
+                if ids:
+                    queues.append((snap, ids))
+            if not queues:
+                STATUS.note("Nothing to do — every active model is up to date.")
                 return 0
-            total = len(item_ids)
-            STATUS.total = total
-            log.info("VLM indexer: %d item(s) to process (model %s)",
-                     total, settings.vlm_model)
-            STATUS.note(f"Starting: {total} item(s), model {settings.vlm_model}")
+            STATUS.total = sum(len(ids) for _, ids in queues)
+            summary = ", ".join(f"{p.name}: {len(ids)}" for p, ids in queues)
+            log.info("VLM indexer: %s item(s) to process (%s)",
+                     STATUS.total, summary)
+            STATUS.note(f"Starting — {summary}")
 
             async with httpx.AsyncClient(timeout=120, transport=transport) as client:
-                stop_run = False
-                for i, item_id in enumerate(item_ids):
-                    attempts = 0
-                    try:
-                        while True:
-                            item = await session.get(
-                                Item, item_id, options=[selectinload(Item.tags)]
-                            )
-                            if item is None:  # deleted while we were running
-                                break
-                            try:
-                                if await _index_one(
-                                    session, settings, search, client, item
-                                ):
-                                    indexed += 1
-                                    consecutive_failures = 0
-                                break
-                            except (
-                                httpx.HTTPStatusError,
-                                httpx.TransportError,
-                            ) as exc:
-                                # Timeouts and network errors are transient by
-                                # nature; HTTP errors only for overload codes.
-                                if isinstance(exc, httpx.HTTPStatusError):
-                                    code = exc.response.status_code
-                                    label = f"HTTP {code}"
-                                    detail = exc.response.text[:120]
-                                    transient = code in TRANSIENT_HTTP
-                                else:
-                                    label = type(exc).__name__
-                                    detail = str(exc)[:120]
-                                    transient = True
-                                await session.rollback()
-                                if transient and attempts < len(TRANSIENT_BACKOFF):
-                                    wait = TRANSIENT_BACKOFF[attempts]
-                                    attempts += 1
-                                    log.info(
-                                        "VLM API %s — retry %d/%d in %ds",
-                                        label, attempts, len(TRANSIENT_BACKOFF), wait,
+                for profile, item_ids in queues:
+                    trial = settings.model_copy(
+                        update={
+                            "vlm_base_url": profile.base_url,
+                            "vlm_api_key": profile.api_key,
+                            "vlm_model": profile.model,
+                        }
+                    )
+                    STATUS.note(f"—— {profile.name} ({profile.model}) ——")
+                    consecutive_failures = 0
+                    skip_profile = False
+                    for i, item_id in enumerate(item_ids):
+                        attempts = 0
+                        try:
+                            while True:
+                                item = await session.get(Item, item_id)
+                                if item is None:  # deleted while we were running
+                                    break
+                                try:
+                                    if await _index_one(
+                                        session, trial, search, client, item, profile
+                                    ):
+                                        indexed += 1
+                                        consecutive_failures = 0
+                                    break
+                                except (
+                                    httpx.HTTPStatusError,
+                                    httpx.TransportError,
+                                ) as exc:
+                                    # Timeouts and network errors are transient
+                                    # by nature; HTTP errors only for overload
+                                    # codes.
+                                    if isinstance(exc, httpx.HTTPStatusError):
+                                        code = exc.response.status_code
+                                        label = f"HTTP {code}"
+                                        detail = exc.response.text[:120]
+                                        transient = code in TRANSIENT_HTTP
+                                    else:
+                                        label = type(exc).__name__
+                                        detail = str(exc)[:120]
+                                        transient = True
+                                    await session.rollback()
+                                    if (
+                                        transient
+                                        and attempts < len(TRANSIENT_BACKOFF)
+                                    ):
+                                        wait = TRANSIENT_BACKOFF[attempts]
+                                        attempts += 1
+                                        log.info(
+                                            "%s: VLM API %s — retry %d/%d in %ds",
+                                            profile.name, label, attempts,
+                                            len(TRANSIENT_BACKOFF), wait,
+                                        )
+                                        STATUS.note(
+                                            f"{profile.name}: {label} (transient) "
+                                            f"— retry {attempts}/"
+                                            f"{len(TRANSIENT_BACKOFF)} in {wait}s"
+                                        )
+                                        await asyncio.sleep(wait)
+                                        continue
+                                    # Auth/model errors, or transient errors
+                                    # that survived all retries — give up on
+                                    # THIS model and move on to the next one;
+                                    # its items stay queued for next run.
+                                    log.warning(
+                                        "%s: VLM API error %s — skipping this "
+                                        "model: %s", profile.name, label, detail,
                                     )
                                     STATUS.note(
-                                        f"{label} (transient) — retry "
-                                        f"{attempts}/{len(TRANSIENT_BACKOFF)} "
-                                        f"in {wait}s"
+                                        f"{profile.name}: API error {label}: "
+                                        f"{detail} — skipping this model, "
+                                        f"moving on"
                                     )
-                                    await asyncio.sleep(wait)
-                                    continue
-                                # Auth/model errors, or transient errors that
-                                # survived all retries — stop the whole run and
-                                # leave the rest pending for next night.
-                                log.warning(
-                                    "VLM API error %s — stopping this run: %s",
-                                    label, detail,
-                                )
-                                STATUS.note(
-                                    f"API error {label}: {detail} — run "
-                                    f"stopped, the rest stays pending"
-                                )
-                                stop_run = True
+                                    skip_profile = True
+                                    break
+                            if skip_profile:
                                 break
-                        if stop_run:
-                            break
-                    except Exception as exc:  # noqa: BLE001 - keep the batch alive
-                        log.exception("VLM indexing failed for item %s", item_id)
-                        STATUS.note(
-                            f"Item {item_id}: error — "
-                            f"{type(exc).__name__}: {str(exc)[:110]}"
-                        )
-                        await session.rollback()
-                        consecutive_failures += 1
-                        if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                            log.warning(
-                                "%d consecutive failures — stopping this run",
-                                consecutive_failures,
+                        except Exception as exc:  # noqa: BLE001 - keep batch alive
+                            log.exception(
+                                "VLM indexing failed for item %s (%s)",
+                                item_id, profile.name,
                             )
                             STATUS.note(
-                                f"{consecutive_failures} consecutive failures "
-                                f"— run stopped"
+                                f"{profile.name} / item {item_id}: error — "
+                                f"{type(exc).__name__}: {str(exc)[:110]}"
                             )
+                            await session.rollback()
+                            consecutive_failures += 1
+                            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                                log.warning(
+                                    "%s: %d consecutive failures — skipping "
+                                    "this model", profile.name,
+                                    consecutive_failures,
+                                )
+                                STATUS.note(
+                                    f"{profile.name}: {consecutive_failures} "
+                                    f"consecutive failures — skipping this "
+                                    f"model, moving on"
+                                )
+                                skip_profile = True
+                        finally:
+                            STATUS.processed += 1
+                            STATUS.indexed = indexed
+                        if skip_profile:
+                            # Remaining items won't be attempted this run —
+                            # keep the progress bar honest.
+                            STATUS.total -= len(item_ids) - (i + 1)
                             break
-                    finally:
-                        STATUS.processed = i + 1
-                        STATUS.indexed = indexed
-                    if delay and i < total - 1:
-                        await asyncio.sleep(delay)
+                        if delay and i < len(item_ids) - 1:
+                            await asyncio.sleep(delay)
 
-        log.info("VLM indexer: %d/%d item(s) indexed", indexed, total)
-        STATUS.note(f"Done: {indexed}/{total} item(s) indexed.")
+        log.info("VLM indexer: %d/%d (item, model) pair(s) indexed",
+                 indexed, STATUS.total)
+        STATUS.note(f"Done: {indexed}/{STATUS.total} indexed.")
         return indexed
     finally:
         STATUS.running = False

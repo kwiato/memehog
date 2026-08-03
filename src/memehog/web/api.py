@@ -62,6 +62,7 @@ async def list_items(
     tag: str = "",
     type: str = "",
     spicy: bool = False,
+    model: int | None = None,
     page: int = 1,
     page_size: int = items_svc.PAGE_SIZE,
     session: AsyncSession = Depends(get_session),
@@ -69,7 +70,7 @@ async def list_items(
 ) -> dict:
     items = await items_svc.list_items(
         session, search, q=q, tag=tag, media_type=type, spicy=spicy,
-        page=page, page_size=min(page_size, 200),
+        page=page, page_size=min(page_size, 200), model_profile_id=model,
     )
     return {"page": page, "items": [item_to_dict(i) for i in items]}
 

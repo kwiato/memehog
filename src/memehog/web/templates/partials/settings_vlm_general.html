@@ -1,21 +1,20 @@
 <div id="vlm-general">
   <form class="vlm-form" hx-post="/ui/settings/vlm" hx-target="#vlm-general" hx-swap="outerHTML">
+    <p class="active-models">
+      {% if active_profiles %}
+      Active models:
+      {% for p in active_profiles %}<code>{{ p.name }}</code>{{ ", " if not loop.last }}{% endfor %}
+      — each keeps its own searchable text, so one provider having a bad night
+      doesn't block indexing.
+      {% else %}
+      <span class="muted">No active models — indexing is off.</span>
+      {% endif %}
+      <a href="/settings?tab=ai">Manage →</a>
+    </p>
     <div class="vlm-row">
-      <label>Active model
-        <select name="profile_id">
-          <option value="">— indexing disabled —</option>
-          {% for p in profiles %}
-          <option value="{{ p.id }}" {{ 'selected' if p.id == selected_profile_id else '' }}>
-            {{ p.name }} ({{ p.model }})
-          </option>
-          {% endfor %}
-        </select>
-      </label>
       <label>Description language
         <input type="text" name="language" value="{{ vlm.vlm_language }}">
       </label>
-    </div>
-    <div class="vlm-row">
       <label>Requests / min
         <input type="number" name="rpm" value="{{ '%g' % vlm.vlm_rpm }}" min="1" step="any">
       </label>

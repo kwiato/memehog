@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Settings
@@ -7,9 +8,6 @@ from ..db.models import AppSetting, VlmProfile
 
 SCAN_CRON_KEY = "scan_cron"
 NIGHTLY_JOB_ID = "nightly"
-
-# app_settings key holding the id of the active VlmProfile (production model).
-VLM_PROFILE_KEY = "vlm_profile_id"
 
 # Settings fields that the web UI can override; stored one row per field in
 # app_settings under the field name. A stored row wins over the .env value.
@@ -34,18 +32,12 @@ def _parse_vlm(field: str, value: str):
     return value.strip()
 
 
-async def active_vlm_profile(session: AsyncSession) -> VlmProfile | None:
-    row = await session.get(AppSetting, VLM_PROFILE_KEY)
-    if row is None or not row.value.strip().isdigit():
-        return None
-    return await session.get(VlmProfile, int(row.value))
-
-
 async def effective_settings(session: AsyncSession, settings: Settings) -> Settings:
     """A copy of `settings` with web-UI overrides applied on top of .env.
 
-    The selected VLM profile (if any) wins over both the .env values and the
-    legacy per-field overrides.
+    Model connections themselves live in `vlm_profiles` — this only covers
+    the indexer knobs (language, rpm, limits) plus the legacy .env fallback
+    fields used to bootstrap the first profile.
     """
     updates = {}
     for field in VLM_FIELDS:
@@ -56,12 +48,27 @@ async def effective_settings(session: AsyncSession, settings: Settings) -> Setti
             updates[field] = _parse_vlm(field, row.value)
         except ValueError:
             pass
-    profile = await active_vlm_profile(session)
-    if profile is not None:
-        updates["vlm_base_url"] = profile.base_url
-        updates["vlm_api_key"] = profile.api_key
-        updates["vlm_model"] = profile.model
     return settings.model_copy(update=updates) if updates else settings
+
+
+async def ensure_profile_from_env(session: AsyncSession, settings: Settings) -> None:
+    """Bootstrap: turn a .env-only VLM config into the first saved profile,
+    so headless installs get indexing without ever opening the settings UI."""
+    if await session.scalar(select(VlmProfile.id).limit(1)) is not None:
+        return
+    effective = await effective_settings(session, settings)
+    if not effective.vlm_enabled:
+        return
+    session.add(
+        VlmProfile(
+            name=effective.vlm_model,
+            base_url=effective.vlm_base_url,
+            api_key=effective.vlm_api_key,
+            model=effective.vlm_model,
+            active=True,
+        )
+    )
+    await session.commit()
 
 
 async def get_setting(

@@ -2,8 +2,10 @@
 {% block content %}
 <header class="topbar">
   <h1><a class="logo" href="/">🐗 Memehog</a> <span class="count">{{ count }} items</span></h1>
+  {# `change` on the form catches the bubbled events from every select and the
+     spicy input — `from:find select` would only watch the first one. #}
   <form class="filters" hx-get="/ui/items" hx-target="#grid" hx-swap="innerHTML"
-        hx-trigger="input changed delay:400ms from:find input[type='search'], change from:find select, change from:find input[name='spicy']">
+        hx-trigger="input changed delay:400ms from:find input[type='search'], change">
     <input type="search" name="q" placeholder="Search memes…" autocomplete="off">
     <select name="type">
       <option value="">All types</option>
@@ -15,6 +17,12 @@
       <option value="">All tags</option>
       {% for t in tags %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}
     </select>
+    {% if search_profiles|length > 1 %}
+    <select name="model" title="Which AI model's descriptions to search">
+      <option value="">🤖 All models</option>
+      {% for p in search_profiles %}<option value="{{ p.id }}">🤖 {{ p.name }}</option>{% endfor %}
+    </select>
+    {% endif %}
     <input type="hidden" name="spicy" value="0">
   </form>
   <button class="btn spicy-btn" title="Spicy mode" onclick="toggleSpicy(this)">🔥</button>

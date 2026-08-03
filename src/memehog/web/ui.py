@@ -28,7 +28,7 @@ from ..core.indexer import STATUS as indexer_status
 from ..core.indexer import describe_image, run_indexing
 from ..core.library import ingest_file
 from ..core.queue import DownloadQueue
-from ..db.models import Item, VlmProfile, VlmSample
+from ..db.models import Item, VlmProfile, VlmSample, VlmText
 from ..search.base import SearchBackend
 from .deps import get_queue, get_search, get_session, get_settings
 
@@ -40,8 +40,18 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 async def index(request: Request, session: AsyncSession = Depends(get_session)):
     tags = await items_svc.all_tags(session)
     count = await items_svc.count_items(session)
+    # Model filter dropdown — only profiles that have indexed anything yet.
+    search_profiles = list(
+        await session.scalars(
+            select(VlmProfile)
+            .where(VlmProfile.id.in_(select(VlmText.profile_id).distinct()))
+            .order_by(VlmProfile.id)
+        )
+    )
     return templates.TemplateResponse(
-        request, "index.html", {"tags": tags, "count": count}
+        request,
+        "index.html",
+        {"tags": tags, "count": count, "search_profiles": search_profiles},
     )
 
 
@@ -57,37 +67,12 @@ async def _list_profiles(session: AsyncSession) -> list[VlmProfile]:
     return list(await session.scalars(select(VlmProfile).order_by(VlmProfile.id)))
 
 
-async def _selected_profile_id(session: AsyncSession) -> int | None:
-    profile = await appsettings.active_vlm_profile(session)
-    return profile.id if profile else None
-
-
-async def _migrate_legacy_vlm(session: AsyncSession, settings: Settings) -> None:
-    """One-time: turn a pre-profiles VLM config (loose .env / app_settings
-    fields) into a saved profile, so the dropdown shows it."""
-    if await session.scalar(select(VlmProfile.id).limit(1)) is not None:
-        return
-    effective = await appsettings.effective_settings(session, settings)
-    if not effective.vlm_enabled:
-        return
-    profile = VlmProfile(
-        name=effective.vlm_model,
-        base_url=effective.vlm_base_url,
-        api_key=effective.vlm_api_key,
-        model=effective.vlm_model,
-    )
-    session.add(profile)
-    await session.flush()
-    await appsettings.set_setting(
-        session, appsettings.VLM_PROFILE_KEY, str(profile.id)
-    )
-
-
 async def _vlm_general_ctx(session: AsyncSession, settings: Settings) -> dict:
+    profiles = await _list_profiles(session)
     return {
         "vlm": await appsettings.effective_settings(session, settings),
-        "profiles": await _list_profiles(session),
-        "selected_profile_id": await _selected_profile_id(session),
+        "profiles": profiles,
+        "active_profiles": [p for p in profiles if p.active],
         "status": indexer_status,
     }
 
@@ -99,7 +84,7 @@ async def settings_page(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
-    await _migrate_legacy_vlm(session, settings)
+    await appsettings.ensure_profile_from_env(session, settings)
     cron = await appsettings.get_setting(
         session, appsettings.SCAN_CRON_KEY, settings.scan_cron
     )
@@ -142,7 +127,6 @@ async def set_scan_hour(
 @router.post("/ui/settings/vlm", response_class=HTMLResponse)
 async def set_vlm(
     request: Request,
-    profile_id: str = Form(""),
     language: str = Form("English"),
     rpm: float = Form(10),
     max_per_run: int = Form(200),
@@ -151,7 +135,6 @@ async def set_vlm(
     settings: Settings = Depends(get_settings),
 ):
     values = {
-        appsettings.VLM_PROFILE_KEY: profile_id if profile_id.isdigit() else "",
         "vlm_language": language.strip() or "English",
         "vlm_rpm": f"{max(rpm, 0.0):g}",
         "vlm_max_per_run": str(max(max_per_run, 1)),
@@ -173,10 +156,7 @@ async def _profiles_response(request: Request, session: AsyncSession):
     return templates.TemplateResponse(
         request,
         "partials/vlm_profiles.html",
-        {
-            "profiles": await _list_profiles(session),
-            "selected_profile_id": await _selected_profile_id(session),
-        },
+        {"profiles": await _list_profiles(session)},
     )
 
 
@@ -236,15 +216,23 @@ async def vlm_profile_create(
         base_url=base_url.strip(),
         model=model.strip(),
         api_key=api_key.strip(),
+        active=True,  # a freshly added model starts indexing right away
     )
     session.add(profile)
-    await session.flush()
-    # First saved model becomes the active one right away.
-    current = await appsettings.get_setting(session, appsettings.VLM_PROFILE_KEY)
-    if not current.strip().isdigit():
-        await appsettings.set_setting(
-            session, appsettings.VLM_PROFILE_KEY, str(profile.id)
-        )
+    await session.commit()
+    return await _profiles_response(request, session)
+
+
+@router.post("/ui/vlm/profiles/{profile_id}/toggle", response_class=HTMLResponse)
+async def vlm_profile_toggle(
+    request: Request,
+    profile_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    profile = await session.get(VlmProfile, profile_id)
+    if profile is None:
+        raise HTTPException(404, "Profile not found")
+    profile.active = not profile.active
     await session.commit()
     return await _profiles_response(request, session)
 
@@ -254,13 +242,13 @@ async def vlm_profile_delete(
     request: Request,
     profile_id: int,
     session: AsyncSession = Depends(get_session),
+    search: SearchBackend = Depends(get_search),
 ):
     profile = await session.get(VlmProfile, profile_id)
     if profile is not None:
-        selected = await _selected_profile_id(session)
+        # The FK cascade drops vlm_texts; the FTS copy is ours to clean up.
+        await search.remove_profile(session, profile_id)
         await session.delete(profile)
-        if selected == profile_id:
-            await appsettings.set_setting(session, appsettings.VLM_PROFILE_KEY, "")
         await session.commit()
     return await _profiles_response(request, session)
 
@@ -469,6 +457,7 @@ async def grid(
     tag: str = "",
     type: str = "",
     spicy: str = "0",
+    model: str = "",
     page: int = 1,
     session: AsyncSession = Depends(get_session),
     search: SearchBackend = Depends(get_search),
@@ -476,6 +465,7 @@ async def grid(
     items = await items_svc.list_items(
         session, search, q=q, tag=tag, media_type=type,
         spicy=spicy == "1", page=page,
+        model_profile_id=int(model) if model.isdigit() else None,
     )
     has_more = len(items) == items_svc.PAGE_SIZE
     return templates.TemplateResponse(
@@ -489,6 +479,7 @@ async def grid(
             "tag": tag,
             "type": type,
             "spicy": spicy,
+            "model": model,
         },
     )
 

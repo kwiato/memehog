@@ -34,13 +34,15 @@ async def list_items(
     spicy: bool = False,
     page: int = 1,
     page_size: int = PAGE_SIZE,
+    model_profile_id: int | None = None,
 ) -> list[Item]:
     offset = (max(page, 1) - 1) * page_size
 
     if q.strip():
         # Over-fetch from FTS so post-filters (tag/type/spicy) can still fill a page.
         ids = await search.search(
-            session, q, limit=page_size * 4 + offset, offset=0
+            session, q, limit=page_size * 4 + offset, offset=0,
+            profile_id=model_profile_id,
         )
         if not ids:
             return []

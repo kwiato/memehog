@@ -141,14 +141,13 @@ async def test_saved_profile_drives_the_indexer(
         },
     )
     assert resp.status_code == 200
-    # first saved profile becomes active automatically
+    # a freshly added profile is active right away
     assert "test-profile" in resp.text
-    assert "active" in resp.text
+    assert "checked" in resp.text
 
     resp = await client.post(
         "/ui/settings/vlm",
         data={
-            "profile_id": "1",
             "language": "Polish",
             "rpm": "0",
             "max_per_run": "50",
@@ -168,6 +167,100 @@ async def test_saved_profile_drives_the_indexer(
     async with session_factory() as session:
         hits = await items_svc.list_items(session, search, q="kapelusz")
         assert [h.id for h in hits] == [item.id]
+
+
+async def test_multiple_active_models_and_search_filter(
+    settings, session_factory, search
+):
+    """Two active models index independently; search can use one model's data."""
+    from memehog.db.models import VlmProfile
+
+    settings.vlm_rpm = 0
+    item = await ingest_png(session_factory, settings, search)
+    async with session_factory() as session:
+        session.add(VlmProfile(
+            name="model-a", base_url="https://x.test/v1", model="vision-a"
+        ))
+        session.add(VlmProfile(
+            name="model-b", base_url="https://y.test/v1", model="vision-b"
+        ))
+        await session.commit()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        model = json.loads(request.content)["model"]
+        desc = "smutna żaba" if model == "vision-a" else "zielona ropucha"
+        content = json.dumps({"ocr_text": "", "description": desc})
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": content}}]}
+        )
+
+    indexed = await run_indexing(
+        session_factory, settings, search, transport=httpx.MockTransport(handler)
+    )
+    assert indexed == 2  # one item × two models
+
+    async with session_factory() as session:
+        # each model's text is searchable on its own...
+        a = await items_svc.list_items(
+            session, search, q="żaba", model_profile_id=1
+        )
+        assert [h.id for h in a] == [item.id]
+        b = await items_svc.list_items(
+            session, search, q="żaba", model_profile_id=2
+        )
+        assert b == []
+        # ...and "all models" finds both wordings
+        assert [h.id for h in await items_svc.list_items(
+            session, search, q="ropucha"
+        )] == [item.id]
+
+
+async def test_one_model_failing_does_not_block_the_other(
+    settings, session_factory, search
+):
+    from memehog.db.models import VlmProfile, VlmText
+    from sqlalchemy import select
+
+    settings.vlm_rpm = 0
+    item = await ingest_png(session_factory, settings, search)
+    async with session_factory() as session:
+        session.add(VlmProfile(
+            name="broken", base_url="https://x.test/v1", model="vision-a"
+        ))
+        session.add(VlmProfile(
+            name="healthy", base_url="https://y.test/v1", model="vision-b"
+        ))
+        await session.commit()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        model = json.loads(request.content)["model"]
+        if model == "vision-a":
+            return httpx.Response(401, json={"error": "bad key"})
+        content = json.dumps({"ocr_text": "", "description": "działam"})
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": content}}]}
+        )
+
+    indexed = await run_indexing(
+        session_factory, settings, search, transport=httpx.MockTransport(handler)
+    )
+    assert indexed == 1  # the healthy model got through
+    async with session_factory() as session:
+        rows = (await session.scalars(select(VlmText))).all()
+        assert [(r.item_id, r.profile_id) for r in rows] == [(item.id, 2)]
+
+
+async def test_profile_toggle(client):
+    await client.post(
+        "/ui/vlm/profiles",
+        data={"name": "p1", "base_url": "https://x.test/v1",
+              "model": "m", "api_key": ""},
+    )
+    resp = await client.post("/ui/vlm/profiles/1/toggle")
+    assert resp.status_code == 200
+    assert "checked" not in resp.text
+    resp = await client.post("/ui/vlm/profiles/1/toggle")
+    assert "checked" in resp.text
 
 
 async def test_profile_edit_flow(client):
@@ -249,7 +342,7 @@ async def test_run_now_without_config_logs_hint(client):
     assert resp.status_code == 200
     await wait_for_run_end()
     status_resp = await client.get("/ui/settings/vlm/status")
-    assert "Not configured" in status_resp.text
+    assert "No active models" in status_resp.text
 
 
 async def test_one_bad_reply_does_not_kill_the_batch(

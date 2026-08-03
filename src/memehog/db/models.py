@@ -91,8 +91,11 @@ class Embedding(Base):
 class VlmProfile(Base):
     """A saved vision-model connection (endpoint + model + API key).
 
-    The active profile (app_settings `vlm_profile_id`) feeds the nightly
-    indexer; the benchmark runs across all of them."""
+    Every profile with `active` set is run by the nightly indexer, each
+    keeping its own copy of OCR/description text (`vlm_texts` + `vlm_fts`) —
+    search can then use one model's data or all of them, and one provider
+    having a bad night doesn't leave memes unindexed. The benchmark runs
+    across all saved profiles regardless of `active`."""
 
     __tablename__ = "vlm_profiles"
 
@@ -101,6 +104,27 @@ class VlmProfile(Base):
     base_url: Mapped[str] = mapped_column(Text)
     api_key: Mapped[str] = mapped_column(Text, default="")
     model: Mapped[str] = mapped_column(String(128))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class VlmText(Base):
+    """One model's OCR+description blob for one item.
+
+    The searchable copy lives in the `vlm_fts` FTS5 table; this row is the
+    source of truth — its presence means the profile has processed the item,
+    which is how the indexer builds its per-profile work queue."""
+
+    __tablename__ = "vlm_texts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("items.id", ondelete="CASCADE"), index=True
+    )
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("vlm_profiles.id", ondelete="CASCADE"), index=True
+    )
+    text: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
