@@ -13,6 +13,14 @@
 #profiles,
 .modal-box.error-log { overflow-x: auto; }
 
+.settings-page a.tag-link {
+  color: var(--fg);
+  text-decoration: none;
+  display: inline-block;
+
+  &:hover { outline: 1px solid var(--accent); }
+}
+
 .tags-header {
   display: flex;
   justify-content: space-between;

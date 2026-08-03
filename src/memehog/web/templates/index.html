@@ -33,7 +33,9 @@
       </select>
       <select name="tag">
         <option value="">All tags</option>
-        {% for t in tags %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}
+        {% for t in tags %}
+        <option value="{{ t.name }}" {{ 'selected' if t.name == selected_tag else '' }}>{{ t.name }}</option>
+        {% endfor %}
       </select>
       {% if langs %}
       <select name="lang" title="Language of the meme's text (AI-detected)">
@@ -63,7 +65,7 @@
   </div>
 </header>
 
-<main id="grid" class="grid" hx-get="/ui/items?page=1" hx-trigger="load" hx-swap="innerHTML">
+<main id="grid" class="grid" hx-get="/ui/items?page=1&tag={{ selected_tag | urlencode }}" hx-trigger="load" hx-swap="innerHTML">
   <p class="muted">Loading…</p>
 </main>
 

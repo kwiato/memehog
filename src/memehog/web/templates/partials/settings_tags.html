@@ -21,7 +21,12 @@
       {% for t in tag_stats %}
       <tr>
         <td>
-          <span class="tag{{ ' spicy-chip' if t.name == 'spicy' else '' }}">{{ t.name }}</span>
+          {% if t.name == 'spicy' %}
+          <span class="tag spicy-chip">{{ t.name }}</span>
+          {% else %}
+          <a class="tag tag-link" href="/?tag={{ t.name | urlencode }}"
+             title="Show memes with this tag">{{ t.name }}</a>
+          {% endif %}
         </td>
         <td>
           {{ t.items }}

@@ -47,7 +47,11 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request, session: AsyncSession = Depends(get_session)):
+async def index(
+    request: Request,
+    tag: str = "",
+    session: AsyncSession = Depends(get_session),
+):
     tags = await items_svc.all_tags(session)
     count = await items_svc.count_items(session)
     # Model filter dropdown — only profiles that have indexed anything yet.
@@ -66,6 +70,7 @@ async def index(request: Request, session: AsyncSession = Depends(get_session)):
             "count": count,
             "search_profiles": search_profiles,
             "langs": await _present_langs(session),
+            "selected_tag": tag,
         },
     )
 

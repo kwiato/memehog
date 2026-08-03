@@ -98,3 +98,17 @@ async def test_tags_tab_and_endpoints(client, settings, session_factory, search)
 
     resp = await client.post("/ui/tags/clean")
     assert resp.status_code == 200
+
+
+async def test_tag_deep_link_preselects_gallery(
+    client, settings, session_factory, search
+):
+    await _two_tagged_items(settings, session_factory, search)
+
+    page = await client.get("/settings?tab=tags")
+    assert 'href="/?tag=kot"' in page.text
+
+    gallery = await client.get("/?tag=kot")
+    assert gallery.status_code == 200
+    assert 'value="kot" selected' in gallery.text
+    assert "tag=kot" in gallery.text  # initial grid load carries the filter
