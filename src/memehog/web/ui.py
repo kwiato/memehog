@@ -75,37 +75,41 @@ async def index(
     )
 
 
-# Flag + native name for the language filter; anything unmapped renders as
-# 🌐 + the raw ISO code, so new languages degrade gracefully.
-LANGUAGES: dict[str, tuple[str, str]] = {
-    "pl": ("🇵🇱", "polski"),
-    "en": ("🇬🇧", "English"),
-    "de": ("🇩🇪", "Deutsch"),
-    "es": ("🇪🇸", "español"),
-    "fr": ("🇫🇷", "français"),
-    "it": ("🇮🇹", "italiano"),
-    "pt": ("🇵🇹", "português"),
-    "ru": ("🇷🇺", "русский"),
-    "uk": ("🇺🇦", "українська"),
-    "cs": ("🇨🇿", "čeština"),
-    "sk": ("🇸🇰", "slovenčina"),
-    "nl": ("🇳🇱", "Nederlands"),
-    "ja": ("🇯🇵", "日本語"),
-    "ko": ("🇰🇷", "한국어"),
-    "zh": ("🇨🇳", "中文"),
+# (flag country code, native name) per language. SVG flags are vendored —
+# emoji flags don't render on Windows. Unmapped codes degrade to 🌐 + code.
+LANGUAGES: dict[str, tuple[str | None, str]] = {
+    "pl": ("pl", "polski"),
+    "en": ("gb", "English"),
+    "de": ("de", "Deutsch"),
+    "es": ("es", "español"),
+    "fr": ("fr", "français"),
+    "it": ("it", "italiano"),
+    "pt": ("pt", "português"),
+    "ru": ("ru", "русский"),
+    "uk": ("ua", "українська"),
+    "cs": ("cz", "čeština"),
+    "sk": ("sk", "slovenčina"),
+    "nl": ("nl", "Nederlands"),
+    "ja": ("jp", "日本語"),
+    "ko": ("kr", "한국어"),
+    "zh": ("cn", "中文"),
 }
 
 
-def _lang_label(code: str) -> str:
-    flag, name = LANGUAGES.get(code, ("🌐", code))
-    return f"{flag} {name}"
+def _lang_meta(code: str) -> dict:
+    country, name = LANGUAGES.get(code, (None, code))
+    return {
+        "code": code,
+        "name": name,
+        "flag": f"/static/vendor/flags/{country}.svg" if country else None,
+    }
 
 
-async def _present_langs(session: AsyncSession) -> list[tuple[str, str]]:
+async def _present_langs(session: AsyncSession) -> list[dict]:
     codes = await session.scalars(
         select(Item.lang).where(Item.lang.is_not(None), Item.lang != "").distinct()
     )
-    return [(code, _lang_label(code)) for code in sorted(codes)]
+    return [_lang_meta(code) for code in sorted(codes)]
 
 
 def _cron_hour(cron: str) -> int:
@@ -687,6 +691,9 @@ async def _item_info_response(
             .order_by(Tag.name)
         )
     ).all()
+    all_langs = [_lang_meta(code) for code in LANGUAGES]
+    if item.lang and item.lang not in LANGUAGES:
+        all_langs.append(_lang_meta(item.lang))
     return templates.TemplateResponse(
         request,
         "partials/item_info.html",
@@ -696,6 +703,7 @@ async def _item_info_response(
             "samples": samples,
             "tag_rows": tag_rows,
             "notices": notices or [],
+            "all_langs": all_langs,
         },
     )
 
@@ -706,6 +714,22 @@ async def item_info(
     item_id: int,
     session: AsyncSession = Depends(get_session),
 ):
+    return await _item_info_response(request, session, item_id)
+
+
+@router.post("/ui/items/{item_id}/lang", response_class=HTMLResponse)
+async def item_set_lang(
+    request: Request,
+    item_id: int,
+    lang: str = Form(""),
+    session: AsyncSession = Depends(get_session),
+):
+    item = await items_svc.get_item(session, item_id)
+    if item is None:
+        raise HTTPException(404, "Item not found")
+    lang = lang.strip().lower()
+    item.lang = lang if (2 <= len(lang) <= 8 and lang.isalpha()) else None
+    await session.commit()
     return await _item_info_response(request, session, item_id)
 
 

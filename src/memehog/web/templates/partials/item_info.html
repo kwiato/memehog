@@ -33,6 +33,20 @@
     <p><strong>Caption:</strong> {{ item.caption }}</p>
     {% endif %}
 
+    <p class="info-lang">
+      <strong>Language:</strong>
+      <select hx-post="/ui/items/{{ item.id }}/lang" hx-trigger="change"
+              hx-target="#modal" hx-swap="innerHTML" name="lang"
+              title="Language of the meme's text — AI-detected, editable">
+        <option value="">— not detected —</option>
+        {% for l in all_langs %}
+        <option value="{{ l.code }}" {{ 'selected' if l.code == item.lang else '' }}>
+          {{ l.name }} ({{ l.code }})
+        </option>
+        {% endfor %}
+      </select>
+    </p>
+
     <h3>Tags</h3>
     {% if tag_rows %}
     <div class="tags">

@@ -38,10 +38,19 @@
         {% endfor %}
       </select>
       {% if langs %}
-      <select name="lang" title="Language of the meme's text (AI-detected)">
-        <option value="">🌐 All</option>
-        {% for code, label in langs %}<option value="{{ code }}">{{ label }}</option>{% endfor %}
-      </select>
+      <details class="dropdown lang-filter" title="Language of the meme's text (AI-detected)">
+        <summary class="btn"><span id="lang-current">🌐</span></summary>
+        <div class="dropdown-menu">
+          <button type="button" data-lang="">🌐 All languages</button>
+          {% for l in langs %}
+          <button type="button" data-lang="{{ l.code }}">
+            {% if l.flag %}<img class="flag" src="{{ l.flag }}" alt="">{% endif %}
+            {{ l.name }}
+          </button>
+          {% endfor %}
+        </div>
+      </details>
+      <input type="hidden" name="lang" value="">
       {% endif %}
       {% if search_profiles|length > 1 %}
       <select name="model" title="Which AI model's descriptions to search">
@@ -127,6 +136,20 @@
     // current query/type/tag/spicy values.
     spicyInput.dispatchEvent(new Event('change', { bubbles: true }));
   }
+
+  // Language filter: custom dropdown (SVG flags — emoji flags don't render
+  // on Windows), collapsed state shows just the current flag.
+  document.querySelectorAll('.lang-filter [data-lang]').forEach((opt) => {
+    opt.addEventListener('click', () => {
+      const input = document.querySelector('.filters input[name="lang"]');
+      const current = document.getElementById('lang-current');
+      input.value = opt.dataset.lang;
+      const flag = opt.querySelector('img.flag');
+      current.innerHTML = flag ? flag.outerHTML : '🌐';
+      opt.closest('details').removeAttribute('open');
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
 
   // --- masonry: give each card a grid-row span from its aspect ratio ------
   // Aspect ratios come from the DB (data-ar), so the layout is final before

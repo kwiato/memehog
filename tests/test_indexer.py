@@ -627,13 +627,39 @@ async def test_language_detection_and_filter(
         only_pl = await items_svc.list_items(session, search, lang="pl")
         assert [i.id for i in only_pl] == [item_pl.id]
 
-    # the gallery filter dropdown lists both detected languages
+    # the gallery filter dropdown lists both detected languages (SVG flags —
+    # emoji flags don't render on Windows)
     page = await client.get("/")
-    assert "🇵🇱 polski" in page.text
-    assert "🇬🇧 English" in page.text
+    assert "/static/vendor/flags/pl.svg" in page.text
+    assert "polski" in page.text
+    assert "/static/vendor/flags/gb.svg" in page.text
     grid = await client.get("/ui/items", params={"page": 1, "lang": "en"})
     assert f'data-id="{item_en.id}"' in grid.text
     assert f'data-id="{item_pl.id}"' not in grid.text
+
+
+async def test_info_language_dropdown_and_edit(
+    client, settings, session_factory, search
+):
+    vlm_settings(settings)
+    item = await ingest_png(session_factory, settings, search)
+    reply = {"ocr_text": "", "description": "opis", "lang": "pl"}
+    await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(reply)
+    )
+
+    info = await client.get(f"/ui/items/{item.id}/info")
+    assert 'value="pl" selected' in info.text
+
+    resp = await client.post(f"/ui/items/{item.id}/lang", data={"lang": "en"})
+    assert resp.status_code == 200
+    assert 'value="en" selected' in resp.text
+    async with session_factory() as session:
+        assert (await items_svc.get_item(session, item.id)).lang == "en"
+
+    resp = await client.post(f"/ui/items/{item.id}/lang", data={"lang": ""})
+    async with session_factory() as session:
+        assert (await items_svc.get_item(session, item.id)).lang is None
 
 
 async def test_auto_tagging_can_be_disabled(settings, session_factory, search):

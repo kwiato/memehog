@@ -44,6 +44,24 @@
   select { min-width: 0; max-width: 100%; }
 }
 
+.lang-filter {
+  img.flag {
+    width: 20px;
+    height: 14px;
+    object-fit: cover;
+    border-radius: 2px;
+    vertical-align: -2px;
+  }
+
+  summary { display: inline-block; }
+
+  .dropdown-menu button {
+    white-space: nowrap;
+
+    img.flag { margin-right: 7px; }
+  }
+}
+
 .top-actions {
   grid-area: actions;
   display: flex;
