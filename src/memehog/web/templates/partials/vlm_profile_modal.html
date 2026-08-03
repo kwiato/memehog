@@ -61,10 +61,12 @@
         openrouter: {
           url: "https://openrouter.ai/api/v1",
           models: ["openrouter/free"],
-          info: '<code>openrouter/free</code> auto-picks an available free vision model ' +
-                '(the free pool rotates weekly). ~50 free requests/day without credits. ' +
-                'Key: <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">openrouter.ai/settings/keys</a> · ' +
-                'free models: <a href="https://openrouter.ai/models?max_price=0" target="_blank" rel="noopener">openrouter.ai/models</a>.',
+          info: '⚠️ <code>openrouter/free</code> is a roulette over the free pool — it can land on ' +
+                'a moderation model (Llama Guard) that outputs safety labels instead of descriptions. ' +
+                'For indexing, pin a specific free <em>vision</em> model from ' +
+                '<a href="https://openrouter.ai/models?max_price=0" target="_blank" rel="noopener">openrouter.ai/models</a> ' +
+                '(look for :free with image support). ~50 free requests/day. ' +
+                'Key: <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">openrouter.ai/settings/keys</a>.',
         },
         groq: {
           url: "https://api.groq.com/openai/v1",
