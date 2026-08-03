@@ -29,6 +29,10 @@
       <details class="dropdown kebab">
         <summary class="btn" title="More">⋮</summary>
         <div class="dropdown-menu">
+          <button hx-get="/ui/items/{{ item.id }}/info"
+                  hx-target="#modal" hx-swap="innerHTML"
+                  onclick="this.closest('details').removeAttribute('open')"
+                  >ℹ️ Info</button>
           <button class="danger" hx-post="/ui/items/{{ item.id }}/delete"
                   hx-confirm="Delete this meme forever?">🗑 Delete</button>
         </div>

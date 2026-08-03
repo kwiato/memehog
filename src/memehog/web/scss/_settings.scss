@@ -127,4 +127,14 @@
   cursor: pointer;
 }
 .active-models { font-size: 14px; margin: 4px 0; }
+
+// --- meme info modal (per-model descriptions, OCR, tags) ---
+.item-info h3 { margin: 20px 0 8px; }
+.info-model {
+  border-top: 1px solid var(--bg3);
+  padding: 10px 0 2px;
+
+  h4 { margin: 0 0 6px; font-size: 14px; }
+  p { margin: 0 0 8px; font-size: 14px; }
+}
 .build-info { margin-top: 18px; font-size: 12px; }

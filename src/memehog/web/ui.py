@@ -28,7 +28,7 @@ from ..core.indexer import STATUS as indexer_status
 from ..core.indexer import describe_image, run_indexing
 from ..core.library import ingest_file
 from ..core.queue import DownloadQueue
-from ..db.models import Item, VlmProfile, VlmSample, VlmText
+from ..db.models import Item, ItemTag, Tag, VlmProfile, VlmSample, VlmText
 from ..search.base import SearchBackend
 from .deps import get_queue, get_search, get_session, get_settings
 
@@ -506,6 +506,52 @@ async def detail(
     if item is None:
         raise HTTPException(404, "Item not found")
     return await _detail_response(request, session, item)
+
+
+@router.get("/ui/items/{item_id}/info", response_class=HTMLResponse)
+async def item_info(
+    request: Request,
+    item_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Everything we know about one meme — per-model descriptions and OCR,
+    tags with their origin, benchmark samples, file metadata."""
+    item = await items_svc.get_item(session, item_id)
+    if item is None:
+        raise HTTPException(404, "Item not found")
+    model_texts = (
+        await session.execute(
+            select(VlmText, VlmProfile)
+            .join(VlmProfile, VlmProfile.id == VlmText.profile_id, isouter=True)
+            .where(VlmText.item_id == item_id)
+            .order_by(VlmText.profile_id)
+        )
+    ).all()
+    samples = list(
+        await session.scalars(
+            select(VlmSample)
+            .where(VlmSample.item_id == item_id)
+            .order_by(VlmSample.model_label)
+        )
+    )
+    tag_rows = (
+        await session.execute(
+            select(Tag.name, ItemTag.source)
+            .join(ItemTag, ItemTag.tag_id == Tag.id)
+            .where(ItemTag.item_id == item_id)
+            .order_by(Tag.name)
+        )
+    ).all()
+    return templates.TemplateResponse(
+        request,
+        "partials/item_info.html",
+        {
+            "item": item,
+            "model_texts": model_texts,
+            "samples": samples,
+            "tag_rows": tag_rows,
+        },
+    )
 
 
 @router.post("/ui/upload")

@@ -1,0 +1,76 @@
+<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
+  <div class="modal-box panel item-info">
+    <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
+    <h2>ℹ️ Meme #{{ item.id }}</h2>
+    <p class="muted">
+      {{ item.filename }} · {{ item.mime }}
+      {% if item.width %} · {{ item.width }}×{{ item.height }}{% endif %}
+      {% if item.duration %} · {{ item.duration | round(1) }}s{% endif %}
+      · {{ (item.file_size / 1024) | round | int }} KB
+      · {{ item.origin }}{% if item.uploader %} · {{ item.uploader }}{% endif %}
+      · added {{ item.created_at.strftime('%Y-%m-%d %H:%M') }}
+      · index: <code>{{ item.index_status }}</code>
+      {% if item.source_url %}
+      · <a href="{{ item.source_url }}" target="_blank" rel="noopener">source ↗</a>
+      {% endif %}
+    </p>
+    {% if item.caption %}
+    <p><strong>Caption:</strong> {{ item.caption }}</p>
+    {% endif %}
+
+    <h3>Tags</h3>
+    {% if tag_rows %}
+    <div class="tags">
+      {% for name, source in tag_rows %}
+      <span class="tag{{ ' ai' if source == 'ai' else '' }}{{ ' spicy-chip' if name == 'spicy' else '' }}"
+            title="{{ 'Added by AI' if source == 'ai' else 'Added by you' }}">
+        {{ name }}{% if source == 'ai' %} 🤖{% endif %}
+      </span>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">No tags yet.</p>
+    {% endif %}
+
+    <h3>AI descriptions &amp; OCR</h3>
+    {% for vt, profile in model_texts %}
+    <div class="info-model">
+      <h4>
+        🤖 {{ profile.name if profile else 'deleted model #' ~ vt.profile_id }}
+        <span class="muted">
+          {% if profile %}{{ profile.model }} · {% endif %}
+          indexed {{ vt.created_at.strftime('%Y-%m-%d %H:%M') }}
+        </span>
+      </h4>
+      {% if vt.description or vt.ocr_text %}
+        {% if vt.description %}<p>{{ vt.description }}</p>{% endif %}
+        {% if vt.ocr_text %}<pre class="vlm-log">{{ vt.ocr_text }}</pre>{% endif %}
+      {% elif vt.text %}
+        {# rows written before OCR/description were stored separately #}
+        <pre class="vlm-log">{{ vt.text }}</pre>
+      {% else %}
+        <p class="muted">(model returned nothing)</p>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="muted">No model has indexed this meme yet.</p>
+    {% endfor %}
+
+    {% if samples %}
+    <h3>Benchmark samples</h3>
+    {% for s in samples %}
+    <div class="info-model">
+      <h4>🏁 {{ s.model_label }}
+        <span class="muted">{{ s.latency_ms }} ms · {{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+      </h4>
+      {% if s.error %}
+      <p class="bench-error">{{ s.error }}</p>
+      {% else %}
+      {% if s.description %}<p>{{ s.description }}</p>{% endif %}
+      {% if s.ocr_text %}<pre class="vlm-log">{{ s.ocr_text }}</pre>{% endif %}
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>

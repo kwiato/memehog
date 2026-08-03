@@ -126,7 +126,11 @@ class VlmText(Base):
     profile_id: Mapped[int] = mapped_column(
         ForeignKey("vlm_profiles.id", ondelete="CASCADE"), index=True
     )
+    # `text` is the combined searchable blob; ocr_text/description keep the
+    # parts separate for display (empty on rows from before the split).
     text: Mapped[str] = mapped_column(Text, default="")
+    ocr_text: Mapped[str] = mapped_column(Text, default="")
+    description: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

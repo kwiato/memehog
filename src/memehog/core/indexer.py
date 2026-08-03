@@ -231,7 +231,15 @@ async def _index_one(
         return False
     ocr, description, tags = await describe_image(client, trial, jpeg, tags_hint)
     fts_text = "\n".join(part for part in (ocr, description) if part)
-    session.add(VlmText(item_id=item.id, profile_id=profile.id, text=fts_text))
+    session.add(
+        VlmText(
+            item_id=item.id,
+            profile_id=profile.id,
+            text=fts_text,
+            ocr_text=ocr,
+            description=description,
+        )
+    )
     await search.index_vlm(session, item.id, profile.id, fts_text)
     added_tags: list[str] = []
     if trial.vlm_auto_tag and tags:

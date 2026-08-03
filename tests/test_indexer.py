@@ -409,6 +409,29 @@ async def test_auto_tagging(client, settings, session_factory, search):
     assert "tag ai" in resp.text  # AI tags are visually marked
 
 
+async def test_item_info_shows_per_model_data(
+    client, settings, session_factory, search
+):
+    vlm_settings(settings)
+    item = await ingest_png(session_factory, settings, search)
+    reply = {
+        "ocr_text": "BOBER KURWA",
+        "description": "Zdziwiony bóbr patrzy w kamerę.",
+        "tags": ["bóbr"],
+    }
+    assert await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(reply)
+    ) == 1
+
+    resp = await client.get(f"/ui/items/{item.id}/info")
+    assert resp.status_code == 200
+    assert "test-vision" in resp.text          # profile name (from env shim)
+    assert "Zdziwiony bóbr" in resp.text       # description, separately…
+    assert "BOBER KURWA" in resp.text          # …from the OCR text
+    assert "bóbr 🤖" in resp.text              # AI tag marked as such
+    assert f"Meme #{item.id}" in resp.text
+
+
 async def test_auto_tagging_can_be_disabled(settings, session_factory, search):
     vlm_settings(settings)
     settings.vlm_auto_tag = False

@@ -80,6 +80,18 @@ async def _migrate(conn) -> None:
         )
 
     cols = {
+        row[1] for row in await conn.execute(text("PRAGMA table_info(vlm_texts)"))
+    }
+    for column in ("ocr_text", "description"):
+        if column not in cols:
+            await conn.execute(
+                text(
+                    f"ALTER TABLE vlm_texts "
+                    f"ADD COLUMN {column} TEXT NOT NULL DEFAULT ''"
+                )
+            )
+
+    cols = {
         row[1] for row in await conn.execute(text("PRAGMA table_info(item_tags)"))
     }
     if "source" not in cols:
