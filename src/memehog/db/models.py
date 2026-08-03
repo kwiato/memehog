@@ -43,6 +43,9 @@ class Item(Base):
     height: Mapped[int | None] = mapped_column(Integer, default=None)
     duration: Mapped[float | None] = mapped_column(Float, default=None)
     thumb_filename: Mapped[str | None] = mapped_column(String(255), default=None)
+    # ISO 639-1 code of the meme text's language, detected by the first model
+    # that indexes the item (NULL until then / when the meme has no text).
+    lang: Mapped[str | None] = mapped_column(String(8), default=None)
     # pending → the nightly indexer (OCR / embeddings, future) should process it
     index_status: Mapped[str] = mapped_column(String(16), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

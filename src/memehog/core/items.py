@@ -32,6 +32,7 @@ async def list_items(
     tag: str = "",
     media_type: str = "",
     spicy: bool = False,
+    lang: str = "",
     page: int = 1,
     page_size: int = PAGE_SIZE,
     model_profile_id: int | None = None,
@@ -51,7 +52,9 @@ async def list_items(
             .where(Item.id.in_(ids))
             .options(selectinload(Item.tags))
         )
-        stmt = _apply_filters(stmt, tag=tag, media_type=media_type, spicy=spicy)
+        stmt = _apply_filters(
+            stmt, tag=tag, media_type=media_type, spicy=spicy, lang=lang
+        )
         rows = (await session.scalars(stmt)).all()
         by_id = {item.id: item for item in rows}
         ordered = [by_id[i] for i in ids if i in by_id]
@@ -64,13 +67,17 @@ async def list_items(
         .limit(page_size)
         .offset(offset)
     )
-    stmt = _apply_filters(stmt, tag=tag, media_type=media_type, spicy=spicy)
+    stmt = _apply_filters(
+        stmt, tag=tag, media_type=media_type, spicy=spicy, lang=lang
+    )
     return list((await session.scalars(stmt)).all())
 
 
-def _apply_filters(stmt, *, tag: str, media_type: str, spicy: bool):
+def _apply_filters(stmt, *, tag: str, media_type: str, spicy: bool, lang: str = ""):
     if media_type:
         stmt = stmt.where(Item.media_type == media_type)
+    if lang:
+        stmt = stmt.where(Item.lang == lang)
     if tag:
         stmt = stmt.join(ItemTag, ItemTag.item_id == Item.id).join(
             Tag, Tag.id == ItemTag.tag_id

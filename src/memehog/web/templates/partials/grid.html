@@ -21,7 +21,7 @@
   {% endfor %}
   {% if has_more %}
   <div class="sentinel"
-       hx-get="/ui/items?q={{ q | urlencode }}&tag={{ tag | urlencode }}&type={{ type | urlencode }}&spicy={{ spicy }}&model={{ model }}&page={{ page + 1 }}"
+       hx-get="/ui/items?q={{ q | urlencode }}&tag={{ tag | urlencode }}&type={{ type | urlencode }}&spicy={{ spicy }}&model={{ model }}&lang={{ lang }}&page={{ page + 1 }}"
        hx-trigger="revealed" hx-swap="outerHTML"></div>
   {% endif %}
 {% elif page == 1 %}

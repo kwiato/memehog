@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 PROMPT = """\
 You are indexing a meme library for full-text search.
 Return ONLY a JSON object with exactly these keys:
-{{"ocr_text": "...", "description": "...", "tags": ["..."]}}
+{{"ocr_text": "...", "description": "...", "tags": ["..."], "lang": "..."}}
 - ocr_text: all text visible in the image, transcribed verbatim in its original
   language ("" if there is none). For long walls of text, transcribe up to
   roughly the first 200 words and stop.
@@ -45,6 +45,8 @@ Return ONLY a JSON object with exactly these keys:
   type when searching for this meme.
 - tags: 0-{max_tags} short lowercase tags in {language} for the topic, meme
   template or vibe.{tags_hint}
+- lang: ISO 639-1 code of the dominant language of the text ON the image,
+  e.g. "pl" or "en" ("" when there is no text).
 No markdown fences, no commentary — just the JSON object."""
 
 # At most this many AI tags may ride on one item, across all models.
@@ -94,7 +96,7 @@ class IndexerStatus:
 STATUS = IndexerStatus()
 
 
-def _parse_response(content: str) -> tuple[str, str, list[str]]:
+def _parse_response(content: str) -> tuple[str, str, list[str], str]:
     match = _JSON_RE.search(content)
     if not match:
         raise ValueError(f"no JSON object in VLM response: {content[:200]!r}")
@@ -112,7 +114,10 @@ def _parse_response(content: str) -> tuple[str, str, list[str]]:
     description = str(data.get("description") or "").strip()
     raw_tags = data.get("tags") or []
     tags = [str(t) for t in raw_tags] if isinstance(raw_tags, list) else []
-    return ocr, description, tags
+    lang = str(data.get("lang") or "").strip().lower()
+    if not (2 <= len(lang) <= 8 and lang.isalpha()):
+        lang = ""
+    return ocr, description, tags, lang
 
 
 def _load_thumb_jpeg(settings: Settings, item: Item) -> bytes | None:
@@ -139,8 +144,8 @@ async def describe_image(
     settings: Settings,
     jpeg: bytes,
     tags_hint: str = "",
-) -> tuple[str, str, list[str]]:
-    """One chat-completions call; returns (ocr_text, description, tags)."""
+) -> tuple[str, str, list[str], str]:
+    """One chat-completions call; returns (ocr_text, description, tags, lang)."""
     data_url = "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()
     prompt = PROMPT.format(
         language=settings.vlm_language,
@@ -287,8 +292,14 @@ async def _index_one(
         item.index_status = "failed"
         await session.commit()
         return False
-    ocr, description, tags = await describe_image(client, trial, jpeg, tags_hint)
+    ocr, description, tags, lang = await describe_image(
+        client, trial, jpeg, tags_hint
+    )
     fts_text = "\n".join(part for part in (ocr, description) if part)
+    # First model to detect a language wins — avoids flip-flopping when
+    # models disagree.
+    if lang and not item.lang:
+        item.lang = lang
     session.add(
         VlmText(
             item_id=item.id,

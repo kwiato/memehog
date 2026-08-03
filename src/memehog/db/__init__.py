@@ -92,6 +92,10 @@ async def _migrate(conn) -> None:
                 )
             )
 
+    cols = {row[1] for row in await conn.execute(text("PRAGMA table_info(items)"))}
+    if "lang" not in cols:
+        await conn.execute(text("ALTER TABLE items ADD COLUMN lang VARCHAR(8)"))
+
     cols = {
         row[1] for row in await conn.execute(text("PRAGMA table_info(item_tags)"))
     }

@@ -596,6 +596,46 @@ async def test_manual_reindex_from_info(settings, session_factory, search):
         assert rows[0].description == "nowy opis po re-run"
 
 
+async def test_language_detection_and_filter(
+    client, settings, session_factory, search
+):
+    vlm_settings(settings)
+    item_pl = await ingest_png(session_factory, settings, search, name="pl.png")
+    item_en = await ingest_png(
+        session_factory, settings, search, name="en.png", color="blue"
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        # first call answers Polish, second English
+        lang = "pl" if handler.calls == 0 else "en"
+        handler.calls += 1
+        content = json.dumps(
+            {"ocr_text": "", "description": f"mem {lang}", "lang": lang}
+        )
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": content}}]}
+        )
+    handler.calls = 0
+
+    assert await run_indexing(
+        session_factory, settings, search, transport=httpx.MockTransport(handler)
+    ) == 2
+
+    async with session_factory() as session:
+        assert (await items_svc.get_item(session, item_pl.id)).lang == "pl"
+        assert (await items_svc.get_item(session, item_en.id)).lang == "en"
+        only_pl = await items_svc.list_items(session, search, lang="pl")
+        assert [i.id for i in only_pl] == [item_pl.id]
+
+    # the gallery filter dropdown lists both detected languages
+    page = await client.get("/")
+    assert "🇵🇱 polski" in page.text
+    assert "🇬🇧 English" in page.text
+    grid = await client.get("/ui/items", params={"page": 1, "lang": "en"})
+    assert f'data-id="{item_en.id}"' in grid.text
+    assert f'data-id="{item_pl.id}"' not in grid.text
+
+
 async def test_auto_tagging_can_be_disabled(settings, session_factory, search):
     vlm_settings(settings)
     settings.vlm_auto_tag = False

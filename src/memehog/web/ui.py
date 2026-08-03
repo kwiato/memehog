@@ -61,8 +61,46 @@ async def index(request: Request, session: AsyncSession = Depends(get_session)):
     return templates.TemplateResponse(
         request,
         "index.html",
-        {"tags": tags, "count": count, "search_profiles": search_profiles},
+        {
+            "tags": tags,
+            "count": count,
+            "search_profiles": search_profiles,
+            "langs": await _present_langs(session),
+        },
     )
+
+
+# Flag + native name for the language filter; anything unmapped renders as
+# 🌐 + the raw ISO code, so new languages degrade gracefully.
+LANGUAGES: dict[str, tuple[str, str]] = {
+    "pl": ("🇵🇱", "polski"),
+    "en": ("🇬🇧", "English"),
+    "de": ("🇩🇪", "Deutsch"),
+    "es": ("🇪🇸", "español"),
+    "fr": ("🇫🇷", "français"),
+    "it": ("🇮🇹", "italiano"),
+    "pt": ("🇵🇹", "português"),
+    "ru": ("🇷🇺", "русский"),
+    "uk": ("🇺🇦", "українська"),
+    "cs": ("🇨🇿", "čeština"),
+    "sk": ("🇸🇰", "slovenčina"),
+    "nl": ("🇳🇱", "Nederlands"),
+    "ja": ("🇯🇵", "日本語"),
+    "ko": ("🇰🇷", "한국어"),
+    "zh": ("🇨🇳", "中文"),
+}
+
+
+def _lang_label(code: str) -> str:
+    flag, name = LANGUAGES.get(code, ("🌐", code))
+    return f"{flag} {name}"
+
+
+async def _present_langs(session: AsyncSession) -> list[tuple[str, str]]:
+    codes = await session.scalars(
+        select(Item.lang).where(Item.lang.is_not(None), Item.lang != "").distinct()
+    )
+    return [(code, _lang_label(code)) for code in sorted(codes)]
 
 
 def _cron_hour(cron: str) -> int:
@@ -398,7 +436,7 @@ async def _run_vlm_test(
     try:
         transport = getattr(request.app.state, "vlm_transport", None)
         async with httpx.AsyncClient(timeout=60, transport=transport) as client:
-            ocr, description, _tags = await describe_image(
+            ocr, description, _tags, _lang = await describe_image(
                 client, trial, _vlm_test_card()
             )
         reply = description or ocr or "(empty reply)"
@@ -561,13 +599,14 @@ async def grid(
     type: str = "",
     spicy: str = "0",
     model: str = "",
+    lang: str = "",
     page: int = 1,
     session: AsyncSession = Depends(get_session),
     search: SearchBackend = Depends(get_search),
 ):
     items = await items_svc.list_items(
         session, search, q=q, tag=tag, media_type=type,
-        spicy=spicy == "1", page=page,
+        spicy=spicy == "1", lang=lang, page=page,
         model_profile_id=int(model) if model.isdigit() else None,
     )
     has_more = len(items) == items_svc.PAGE_SIZE
@@ -583,6 +622,7 @@ async def grid(
             "type": type,
             "spicy": spicy,
             "model": model,
+            "lang": lang,
         },
     )
 
