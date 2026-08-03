@@ -345,6 +345,21 @@ async def test_deleting_active_profile_disables_indexing(
     assert indexed == 0  # active profile gone, .env empty → indexer disabled
 
 
+async def test_interval_setting_saved(client, settings, session_factory):
+    resp = await client.post(
+        "/ui/settings/vlm",
+        data={"language": "Polish", "rpm": "10", "max_per_run": "200",
+              "interval": "30", "index_spicy": "0", "auto_tag": "1"},
+    )
+    assert resp.status_code == 200
+
+    from memehog.core import appsettings
+
+    async with session_factory() as session:
+        effective = await appsettings.effective_settings(session, settings)
+    assert effective.vlm_interval_minutes == 30
+
+
 async def test_vlm_test_endpoint_requires_config(client):
     resp = await client.post(
         "/ui/settings/vlm/test", data={"base_url": "", "model": ""}

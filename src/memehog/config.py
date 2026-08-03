@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     vlm_index_spicy: bool = False
     # Let the indexer also attach tags to memes (marked as AI tags in the UI).
     vlm_auto_tag: bool = True
+    # Extra indexer runs between the nightly ones, in minutes (0 = nightly
+    # only). Frequent runs help with free-tier daily quotas that reset at
+    # odd hours — a model that hit its limit gets retried soon after.
+    vlm_interval_minutes: int = 60
 
     # Baked into the Docker image by CI (see docker/Dockerfile); "dev" locally.
     memehog_build_sha: str = "dev"

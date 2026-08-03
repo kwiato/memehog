@@ -123,7 +123,8 @@ Everything lives in `.env` (see [.env.example](.env.example)):
 | `VLM_MODEL` | *(empty)* | Vision model name, e.g. `gemini-3.5-flash` |
 | `VLM_LANGUAGE` | `English` | Language the meme descriptions are written in |
 | `VLM_RPM` | `10` | Indexer request rate — keep under your provider's free-tier limit |
-| `VLM_MAX_PER_RUN` | `200` | Max items indexed per night (spreads backfills over several nights) |
+| `VLM_MAX_PER_RUN` | `200` | Max items indexed per run (spreads backfills over several runs) |
+| `VLM_INTERVAL_MINUTES` | `60` | Extra indexer runs between the nightly ones (0 = nightly only) |
 | `VLM_INDEX_SPICY` | `false` | Also send spicy memes to the VLM (see privacy note²) |
 | `VLM_AUTO_TAG` | `true` | Let the indexer attach tags (prefers your existing tags; AI tags show dashed) |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |

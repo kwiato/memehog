@@ -6,6 +6,7 @@ import logging
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import func, select
 
 from .config import Settings
@@ -53,9 +54,10 @@ async def run() -> None:
     queue = DownloadQueue(session_factory, settings, search)
     await queue.restore_pending()
 
-    # The web UI can override the cron from .env (stored in app_settings).
+    # The web UI can override the cron/interval from .env (app_settings rows).
     async with session_factory() as session:
         scan_cron = await get_setting(session, SCAN_CRON_KEY, settings.scan_cron)
+        effective = await appsettings.effective_settings(session, settings)
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
@@ -64,8 +66,22 @@ async def run() -> None:
         id=NIGHTLY_JOB_ID,
         args=[session_factory, settings, search],
     )
+    if effective.vlm_interval_minutes > 0:
+        # Extra indexer-only runs between the nightly ones — free-tier quotas
+        # reset at odd hours, so quick retries beat one 3 AM attempt.
+        scheduler.add_job(
+            run_indexing,
+            IntervalTrigger(minutes=effective.vlm_interval_minutes),
+            id=appsettings.VLM_INTERVAL_JOB_ID,
+            args=[session_factory, settings, search],
+        )
     scheduler.start()
-    log.info("Nightly maintenance scheduled: %s", scan_cron)
+    log.info(
+        "Nightly maintenance scheduled: %s; indexer interval: %s",
+        scan_cron,
+        f"{effective.vlm_interval_minutes} min"
+        if effective.vlm_interval_minutes > 0 else "nightly only",
+    )
 
     app = create_app(settings, session_factory, search, queue, scheduler=scheduler)
     server = uvicorn.Server(

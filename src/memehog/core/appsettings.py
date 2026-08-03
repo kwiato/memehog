@@ -8,6 +8,7 @@ from ..db.models import AppSetting, VlmProfile
 
 SCAN_CRON_KEY = "scan_cron"
 NIGHTLY_JOB_ID = "nightly"
+VLM_INTERVAL_JOB_ID = "vlm-interval"
 
 # Settings fields that the web UI can override; stored one row per field in
 # app_settings under the field name. A stored row wins over the .env value.
@@ -20,13 +21,14 @@ VLM_FIELDS: tuple[str, ...] = (
     "vlm_max_per_run",
     "vlm_index_spicy",
     "vlm_auto_tag",
+    "vlm_interval_minutes",
 )
 
 
 def _parse_vlm(field: str, value: str):
     if field == "vlm_rpm":
         return float(value)
-    if field == "vlm_max_per_run":
+    if field in ("vlm_max_per_run", "vlm_interval_minutes"):
         return int(value)
     if field in ("vlm_index_spicy", "vlm_auto_tag"):
         return value.strip().lower() in ("1", "true", "on", "yes")

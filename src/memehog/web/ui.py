@@ -141,20 +141,43 @@ async def set_vlm(
     language: str = Form("English"),
     rpm: float = Form(10),
     max_per_run: int = Form(200),
+    interval: int = Form(60),
     index_spicy: str = Form("0"),
     auto_tag: str = Form("0"),
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
+    interval = max(interval, 0)
     values = {
         "vlm_language": language.strip() or "English",
         "vlm_rpm": f"{max(rpm, 0.0):g}",
         "vlm_max_per_run": str(max(max_per_run, 1)),
+        "vlm_interval_minutes": str(interval),
         "vlm_index_spicy": "1" if index_spicy == "1" else "0",
         "vlm_auto_tag": "1" if auto_tag == "1" else "0",
     }
     for key, value in values.items():
         await appsettings.set_setting(session, key, value)
+
+    # Apply the new interval to the live scheduler right away.
+    scheduler = request.app.state.scheduler
+    if scheduler is not None:
+        from apscheduler.triggers.interval import IntervalTrigger
+
+        job = scheduler.get_job(appsettings.VLM_INTERVAL_JOB_ID)
+        if job is not None:
+            job.remove()
+        if interval > 0:
+            scheduler.add_job(
+                run_indexing,
+                IntervalTrigger(minutes=interval),
+                id=appsettings.VLM_INTERVAL_JOB_ID,
+                args=[
+                    request.app.state.session_factory,
+                    request.app.state.settings,
+                    request.app.state.search,
+                ],
+            )
     return templates.TemplateResponse(
         request,
         "partials/settings_vlm_general.html",

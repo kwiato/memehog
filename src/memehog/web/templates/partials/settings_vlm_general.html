@@ -18,8 +18,20 @@
       <label>Requests / min
         <input type="number" name="rpm" value="{{ '%g' % vlm.vlm_rpm }}" min="1" step="any">
       </label>
-      <label>Max per night
+      <label>Max per run
         <input type="number" name="max_per_run" value="{{ vlm.vlm_max_per_run }}" min="1">
+      </label>
+      <label>Indexing runs
+        <select name="interval">
+          {% for minutes, label in [(0, 'nightly only'), (15, 'every 15 min'),
+                                    (30, 'every 30 min'), (60, 'every hour'),
+                                    (180, 'every 3 h'), (360, 'every 6 h')] %}
+          <option value="{{ minutes }}"
+                  {{ 'selected' if minutes == vlm.vlm_interval_minutes else '' }}>
+            {{ label }}
+          </option>
+          {% endfor %}
+        </select>
       </label>
     </div>
     <label class="vlm-checkbox">
