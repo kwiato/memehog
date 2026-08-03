@@ -1,41 +1,87 @@
+// Topbar is a grid: one row on desktop, stacked rows on phones with the
+// filter dropdowns tucked behind the funnel button.
 .topbar {
   position: sticky;
   top: 0;
   z-index: 10;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(200px, 1fr) auto auto;
+  grid-template-areas: "logo search selects actions";
   align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 10px 14px;
   padding: 12px 20px;
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--bg3);
 
-  h1 { font-size: 20px; margin: 0; white-space: nowrap; }
+  h1 { grid-area: logo; font-size: 20px; margin: 0; white-space: nowrap; }
 }
 
 .count { font-size: 13px; color: var(--muted); font-weight: normal; margin-left: 6px; }
 
-.filters {
+.filters { display: contents; }
+
+.search-area {
+  grid-area: search;
   display: flex;
   gap: 8px;
-  flex: 1;
-  min-width: 260px;
-  // Phones: long tag/model names blow up the selects' intrinsic width —
-  // let the row wrap and never let a select outgrow the container.
-  flex-wrap: wrap;
 
-  input[type="search"] { flex: 1; min-width: 140px; }
+  input[type="search"] { flex: 1; min-width: 0; }
+}
+
+.filter-toggle {
+  display: none;  // desktop shows the dropdowns inline instead
+  align-items: center;
+
+  &.active { border-color: var(--accent); color: var(--accent); }
+}
+
+.filter-selects {
+  grid-area: selects;
+  display: flex;
+  gap: 8px;
+
   select { min-width: 0; max-width: 100%; }
 }
 
-.main-nav {
+.top-actions {
+  grid-area: actions;
   display: flex;
   gap: 8px;
-  margin-left: auto;
+}
+
+.main-nav {
+  grid-area: actions;
+  justify-self: end;
+  display: flex;
+  gap: 8px;
 
   .btn { text-decoration: none; }
   .btn.active { border-color: var(--accent); color: var(--accent); }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "logo actions"
+      "search search"
+      "selects selects";
+  }
+  .filter-toggle { display: inline-flex; }
+  .filter-selects {
+    display: none;
+    flex-wrap: wrap;
+  }
+  .topbar.filters-open .filter-selects { display: flex; }
+
+  // Settings page: the three nav buttons don't fit next to the logo —
+  // give them the second row instead.
+  .main-nav {
+    grid-area: search;
+    justify-self: start;
+    flex-wrap: wrap;
+  }
 }
 
 // --- dropdown menus (topbar menu + kebab) ---

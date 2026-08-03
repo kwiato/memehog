@@ -7,37 +7,52 @@
   <h1><a class="logo" href="/">🐗 Memehog</a> <span class="count">{{ count }} items</span></h1>
   {# `change` on the form catches the bubbled events from every select and the
      spicy input — `from:find select` would only watch the first one. `submit`
-     makes Enter search immediately instead of reloading the page. #}
+     makes Enter search immediately instead of reloading the page. The form is
+     display:contents so its two groups sit in the topbar grid directly. #}
   <form class="filters" hx-get="/ui/items" hx-target="#grid" hx-swap="innerHTML"
         hx-trigger="input changed delay:400ms from:find input[type='search'], change, submit">
-    <input type="search" name="q" placeholder="Search memes…" autocomplete="off">
-    <select name="type">
-      <option value="">All types</option>
-      <option value="image">Images</option>
-      <option value="video">Videos</option>
-      <option value="animation">GIFs</option>
-    </select>
-    <select name="tag">
-      <option value="">All tags</option>
-      {% for t in tags %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}
-    </select>
-    {% if search_profiles|length > 1 %}
-    <select name="model" title="Which AI model's descriptions to search">
-      <option value="">🤖 All models</option>
-      {% for p in search_profiles %}<option value="{{ p.id }}">🤖 {{ p.name }}</option>{% endfor %}
-    </select>
-    {% endif %}
-    <input type="hidden" name="spicy" value="0">
+    <div class="search-area">
+      <input type="search" name="q" placeholder="Search memes…" autocomplete="off">
+      <button type="button" class="btn filter-toggle" title="Filters"
+              aria-label="Toggle filters"
+              onclick="document.querySelector('.topbar').classList.toggle('filters-open'); this.classList.toggle('active')">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" fill="none"/>
+        </svg>
+      </button>
+    </div>
+    <div class="filter-selects">
+      <select name="type">
+        <option value="">All types</option>
+        <option value="image">Images</option>
+        <option value="video">Videos</option>
+        <option value="animation">GIFs</option>
+      </select>
+      <select name="tag">
+        <option value="">All tags</option>
+        {% for t in tags %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}
+      </select>
+      {% if search_profiles|length > 1 %}
+      <select name="model" title="Which AI model's descriptions to search">
+        <option value="">🤖 All models</option>
+        {% for p in search_profiles %}<option value="{{ p.id }}">🤖 {{ p.name }}</option>{% endfor %}
+      </select>
+      {% endif %}
+      <input type="hidden" name="spicy" value="0">
+    </div>
   </form>
-  <button class="btn spicy-btn" title="Spicy mode" onclick="toggleSpicy(this)">🔥</button>
-  <details class="dropdown">
-    <summary class="btn" title="Menu">☰</summary>
-    <nav class="dropdown-menu">
-      <button onclick="location.href='/settings'">⚙️ Settings</button>
-      <button hx-get="/ui/about" hx-target="#modal" hx-swap="innerHTML"
-              onclick="this.closest('details').removeAttribute('open')">ℹ️ About</button>
-    </nav>
-  </details>
+  <div class="top-actions">
+    <button class="btn spicy-btn" title="Spicy mode" onclick="toggleSpicy(this)">🔥</button>
+    <details class="dropdown">
+      <summary class="btn" title="Menu">☰</summary>
+      <nav class="dropdown-menu">
+        <button onclick="location.href='/settings'">⚙️ Settings</button>
+        <button hx-get="/ui/about" hx-target="#modal" hx-swap="innerHTML"
+                onclick="this.closest('details').removeAttribute('open')">ℹ️ About</button>
+      </nav>
+    </details>
+  </div>
 </header>
 
 <main id="grid" class="grid" hx-get="/ui/items?page=1" hx-trigger="load" hx-swap="innerHTML">
