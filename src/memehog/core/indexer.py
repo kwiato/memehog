@@ -19,6 +19,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
+import json_repair
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -99,7 +100,14 @@ def _parse_response(content: str) -> tuple[str, str, list[str]]:
         raise ValueError(f"no JSON object in VLM response: {content[:200]!r}")
     # strict=False: some models (pixtral among them) put literal newlines
     # inside JSON strings when transcribing multi-line memes.
-    data = json.loads(match.group(0), strict=False)
+    try:
+        data = json.loads(match.group(0), strict=False)
+    except json.JSONDecodeError:
+        # Smaller models produce almost-JSON in creative ways (trailing
+        # commas, stray quotes...) — best-effort repair before giving up.
+        data = json_repair.loads(match.group(0))
+    if not isinstance(data, dict):
+        raise ValueError(f"VLM response is not a JSON object: {content[:200]!r}")
     ocr = str(data.get("ocr_text") or "").strip()
     description = str(data.get("description") or "").strip()
     raw_tags = data.get("tags") or []

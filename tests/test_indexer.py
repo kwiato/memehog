@@ -129,6 +129,27 @@ async def test_literal_newlines_in_json_strings_are_tolerated(
         assert [h.id for h in hits] == [item.id]
 
 
+async def test_broken_json_is_repaired(settings, session_factory, search):
+    """Trailing commas and other almost-JSON from small models goes through
+    the json-repair fallback instead of erroring the item out."""
+    vlm_settings(settings)
+    item = await ingest_png(session_factory, settings, search)
+
+    broken = (
+        '{\n'
+        '  "ocr_text": "PONIEDZIAŁEK",\n'
+        '  "description": "mem o poniedziałku",\n'   # trailing comma
+        '}'
+    )
+    indexed = await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(broken)
+    )
+    assert indexed == 1
+    async with session_factory() as session:
+        hits = await items_svc.list_items(session, search, q="poniedziałek")
+        assert [h.id for h in hits] == [item.id]
+
+
 async def test_json_in_markdown_fences_is_tolerated(settings, session_factory, search):
     vlm_settings(settings)
     item = await ingest_png(session_factory, settings, search)
