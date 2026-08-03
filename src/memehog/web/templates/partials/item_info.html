@@ -1,7 +1,22 @@
 <div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
   <div class="modal-box panel item-info">
     <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
-    <h2>ℹ️ Meme #{{ item.id }}</h2>
+    <div class="info-header">
+      <h2>ℹ️ Meme #{{ item.id }}</h2>
+      <button class="btn small" hx-post="/ui/items/{{ item.id }}/reindex"
+              hx-target="#modal" hx-swap="innerHTML" hx-disabled-elt="this"
+              title="Run every active model on this meme now, replacing their previous descriptions"
+              >🔄 Re-run AI now<span class="spin"></span></button>
+    </div>
+    {% if notices %}
+    <ul class="reindex-notices">
+      {% for name, outcome in notices %}
+      <li class="{{ 'ok' if outcome == 'ok' else 'error' }}">
+        <strong>{{ name }}</strong>: {{ outcome }}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
     <p class="muted">
       {{ item.filename }} · {{ item.mime }}
       {% if item.width %} · {{ item.width }}×{{ item.height }}{% endif %}

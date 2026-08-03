@@ -19,6 +19,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -169,6 +170,33 @@ async def describe_image(
     return _parse_response(content)
 
 
+async def _build_tags_hint(session: AsyncSession, settings: Settings) -> str:
+    """Existing tags (most-used first) as the model's preferred vocabulary,
+    so auto-tagging converges instead of sprawling."""
+    if not settings.vlm_auto_tag:
+        return ""
+    rows = await session.execute(
+        select(Tag.name)
+        .join(ItemTag, ItemTag.tag_id == Tag.id)
+        .where(Tag.name != SPICY_TAG)
+        .group_by(Tag.id)
+        .order_by(func.count(ItemTag.item_id).desc())
+        .limit(TAGS_HINT_LIMIT)
+    )
+    return ", ".join(name for (name,) in rows)
+
+
+def _profile_snapshot(profile: VlmProfile) -> SimpleNamespace:
+    """Plain-values copy — survives session.rollback(), unlike ORM objects."""
+    return SimpleNamespace(
+        id=profile.id,
+        name=profile.name,
+        model=profile.model,
+        base_url=profile.base_url,
+        api_key=profile.api_key,
+    )
+
+
 def _normalize_tag(raw: str) -> str:
     return " ".join(raw.lower().split())[:32]
 
@@ -302,13 +330,7 @@ async def run_indexing(
             # outside the async context.
             queues: list[tuple[SimpleNamespace, list[int]]] = []
             for orm_profile in profiles:
-                snap = SimpleNamespace(
-                    id=orm_profile.id,
-                    name=orm_profile.name,
-                    model=orm_profile.model,
-                    base_url=orm_profile.base_url,
-                    api_key=orm_profile.api_key,
-                )
+                snap = _profile_snapshot(orm_profile)
                 done = select(VlmText.item_id).where(
                     VlmText.profile_id == snap.id
                 )
@@ -332,19 +354,7 @@ async def run_indexing(
                      STATUS.total, summary)
             STATUS.note(f"Starting — {summary}")
 
-            # Existing tags (most-used first) as the model's preferred
-            # vocabulary, so auto-tagging converges instead of sprawling.
-            tags_hint = ""
-            if settings.vlm_auto_tag:
-                rows = await session.execute(
-                    select(Tag.name)
-                    .join(ItemTag, ItemTag.tag_id == Tag.id)
-                    .where(Tag.name != SPICY_TAG)
-                    .group_by(Tag.id)
-                    .order_by(func.count(ItemTag.item_id).desc())
-                    .limit(TAGS_HINT_LIMIT)
-                )
-                tags_hint = ", ".join(name for (name,) in rows)
+            tags_hint = await _build_tags_hint(session, settings)
 
             async with httpx.AsyncClient(timeout=120, transport=transport) as client:
                 for profile, item_ids in queues:
@@ -465,3 +475,81 @@ async def run_indexing(
         return indexed
     finally:
         STATUS.running = False
+
+
+async def reindex_item(
+    session_factory: async_sessionmaker[AsyncSession],
+    settings: Settings,
+    search: SearchBackend,
+    item_id: int,
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> list[tuple[str, str]]:
+    """Manually run every active model over ONE item, replacing its previous
+    output. Returns (profile_name, outcome) per model, where outcome is "ok"
+    or a short error description. Used by the Info modal's re-run button."""
+    if STATUS.running:
+        return [("indexer", "a full indexing run is in progress — try again "
+                            "in a moment")]
+    results: list[tuple[str, str]] = []
+    async with session_factory() as session:
+        settings = await effective_settings(session, settings)
+        profiles = list(
+            await session.scalars(
+                select(VlmProfile)
+                .where(VlmProfile.active.is_(True))
+                .order_by(VlmProfile.id)
+            )
+        )
+        if not profiles:
+            return [("indexer", "no active models — enable one in the "
+                                "AI models tab")]
+        snapshots = [_profile_snapshot(p) for p in profiles]
+        item = await session.get(Item, item_id)
+        if item is None:
+            return []
+        if item.filename.startswith(f"{SPICY_TAG}/") and not settings.vlm_index_spicy:
+            return [("indexer", "spicy meme — enable 'Index spicy memes' "
+                                "in Settings first")]
+        tags_hint = await _build_tags_hint(session, settings)
+
+        async with httpx.AsyncClient(timeout=120, transport=transport) as client:
+            for snap in snapshots:
+                trial = settings.model_copy(
+                    update={
+                        "vlm_base_url": snap.base_url,
+                        "vlm_api_key": snap.api_key,
+                        "vlm_model": snap.model,
+                    }
+                )
+                try:
+                    # Replace the previous output instead of stacking rows.
+                    await session.execute(
+                        sa_delete(VlmText).where(
+                            VlmText.item_id == item_id,
+                            VlmText.profile_id == snap.id,
+                        )
+                    )
+                    ok = await _index_one(
+                        session, trial, search, client, item, snap, tags_hint
+                    )
+                    results.append((snap.name, "ok" if ok else "no readable media"))
+                except httpx.HTTPStatusError as exc:
+                    await session.rollback()
+                    results.append(
+                        (snap.name,
+                         f"HTTP {exc.response.status_code}: "
+                         f"{exc.response.text[:100]}")
+                    )
+                except Exception as exc:  # noqa: BLE001 - report, keep going
+                    log.exception("Manual reindex failed for item %s (%s)",
+                                  item_id, snap.name)
+                    await session.rollback()
+                    results.append(
+                        (snap.name, f"{type(exc).__name__}: {str(exc)[:100]}")
+                    )
+                # A rollback expires the ORM item — reload for the next model.
+                item = await session.get(Item, item_id)
+                if item is None:
+                    break
+    return results

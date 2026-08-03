@@ -432,6 +432,50 @@ async def test_item_info_shows_per_model_data(
     assert f"Meme #{item.id}" in resp.text
 
 
+async def test_manual_reindex_from_info(settings, session_factory, search):
+    from sqlalchemy import select
+
+    from memehog.db.models import VlmText
+
+    vlm_settings(settings)
+    item = await ingest_png(session_factory, settings, search)
+
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        desc = "stary opis" if calls["n"] == 1 else "nowy opis po re-run"
+        content = json.dumps({"ocr_text": "", "description": desc})
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": content}}]}
+        )
+
+    transport = httpx.MockTransport(handler)
+    assert await run_indexing(
+        session_factory, settings, search, transport=transport
+    ) == 1
+
+    queue = DownloadQueue(session_factory, settings, search)
+    app = create_app(settings, session_factory, search, queue)
+    app.state.vlm_transport = transport
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        resp = await client.post(f"/ui/items/{item.id}/reindex")
+        assert resp.status_code == 200
+        assert "nowy opis po re-run" in resp.text
+        assert ": ok" in resp.text
+
+    async with session_factory() as session:
+        rows = list(
+            await session.scalars(
+                select(VlmText).where(VlmText.item_id == item.id)
+            )
+        )
+        assert len(rows) == 1  # replaced, not stacked
+        assert rows[0].description == "nowy opis po re-run"
+
+
 async def test_auto_tagging_can_be_disabled(settings, session_factory, search):
     vlm_settings(settings)
     settings.vlm_auto_tag = False

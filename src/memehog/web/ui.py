@@ -25,7 +25,7 @@ from ..core import bench as bench_svc
 from ..core import clients as clients_svc
 from ..core import items as items_svc
 from ..core.indexer import STATUS as indexer_status
-from ..core.indexer import describe_image, run_indexing
+from ..core.indexer import describe_image, reindex_item, run_indexing
 from ..core.library import ingest_file
 from ..core.queue import DownloadQueue
 from ..db.models import Item, ItemTag, Tag, VlmProfile, VlmSample, VlmText
@@ -508,11 +508,11 @@ async def detail(
     return await _detail_response(request, session, item)
 
 
-@router.get("/ui/items/{item_id}/info", response_class=HTMLResponse)
-async def item_info(
+async def _item_info_response(
     request: Request,
+    session: AsyncSession,
     item_id: int,
-    session: AsyncSession = Depends(get_session),
+    notices: list[tuple[str, str]] | None = None,
 ):
     """Everything we know about one meme — per-model descriptions and OCR,
     tags with their origin, benchmark samples, file metadata."""
@@ -550,8 +550,38 @@ async def item_info(
             "model_texts": model_texts,
             "samples": samples,
             "tag_rows": tag_rows,
+            "notices": notices or [],
         },
     )
+
+
+@router.get("/ui/items/{item_id}/info", response_class=HTMLResponse)
+async def item_info(
+    request: Request,
+    item_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    return await _item_info_response(request, session, item_id)
+
+
+@router.post("/ui/items/{item_id}/reindex", response_class=HTMLResponse)
+async def item_reindex(
+    request: Request,
+    item_id: int,
+    session: AsyncSession = Depends(get_session),
+):
+    """Re-run every active model over this one meme, then show the refreshed
+    Info modal with a per-model outcome."""
+    app = request.app
+    notices = await reindex_item(
+        app.state.session_factory,
+        app.state.settings,
+        app.state.search,
+        item_id,
+        transport=getattr(app.state, "vlm_transport", None),
+    )
+    session.expire_all()  # reindex ran in its own session — drop stale state
+    return await _item_info_response(request, session, item_id, notices=notices)
 
 
 @router.post("/ui/upload")
