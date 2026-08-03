@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # Send spicy memes to the VLM too? Free API tiers may use inputs for
     # training, so this is opt-in.
     vlm_index_spicy: bool = False
+    # Let the indexer also attach tags to memes (marked as AI tags in the UI).
+    vlm_auto_tag: bool = True
 
     # Baked into the Docker image by CI (see docker/Dockerfile); "dev" locally.
     memehog_build_sha: str = "dev"

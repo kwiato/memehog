@@ -125,6 +125,7 @@ Everything lives in `.env` (see [.env.example](.env.example)):
 | `VLM_RPM` | `10` | Indexer request rate — keep under your provider's free-tier limit |
 | `VLM_MAX_PER_RUN` | `200` | Max items indexed per night (spreads backfills over several nights) |
 | `VLM_INDEX_SPICY` | `false` | Also send spicy memes to the VLM (see privacy note²) |
+| `VLM_AUTO_TAG` | `true` | Let the indexer attach tags (prefers your existing tags; AI tags show dashed) |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 
 ¹ Instagram increasingly requires login for downloads. Export cookies from your browser with an extension like *Get cookies.txt LOCALLY*, drop the file into the data directory and set `COOKIES_FILE=/data/cookies.txt`.

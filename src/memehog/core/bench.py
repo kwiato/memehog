@@ -112,7 +112,7 @@ async def run_benchmark(
                             error = "no readable media"
                         else:
                             try:
-                                ocr, description = await describe_image(
+                                ocr, description, _tags = await describe_image(
                                     client, trial, jpeg
                                 )
                             except httpx.HTTPStatusError as exc:

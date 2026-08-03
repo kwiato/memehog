@@ -131,6 +131,7 @@ async def set_vlm(
     rpm: float = Form(10),
     max_per_run: int = Form(200),
     index_spicy: str = Form("0"),
+    auto_tag: str = Form("0"),
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
@@ -139,6 +140,7 @@ async def set_vlm(
         "vlm_rpm": f"{max(rpm, 0.0):g}",
         "vlm_max_per_run": str(max(max_per_run, 1)),
         "vlm_index_spicy": "1" if index_spicy == "1" else "0",
+        "vlm_auto_tag": "1" if auto_tag == "1" else "0",
     }
     for key, value in values.items():
         await appsettings.set_setting(session, key, value)
@@ -297,7 +299,9 @@ async def _run_vlm_test(
     try:
         transport = getattr(request.app.state, "vlm_transport", None)
         async with httpx.AsyncClient(timeout=60, transport=transport) as client:
-            ocr, description = await describe_image(client, trial, _vlm_test_card())
+            ocr, description, _tags = await describe_image(
+                client, trial, _vlm_test_card()
+            )
         reply = description or ocr or "(empty reply)"
         return HTMLResponse(
             f'<span class="vlm-test ok">✅ Works! Model replied: '
@@ -484,6 +488,14 @@ async def grid(
     )
 
 
+async def _detail_response(request: Request, session: AsyncSession, item: Item):
+    return templates.TemplateResponse(
+        request,
+        "partials/detail.html",
+        {"item": item, "ai_tags": await items_svc.ai_tag_names(session, item.id)},
+    )
+
+
 @router.get("/ui/items/{item_id}/detail", response_class=HTMLResponse)
 async def detail(
     request: Request,
@@ -493,7 +505,7 @@ async def detail(
     item = await items_svc.get_item(session, item_id)
     if item is None:
         raise HTTPException(404, "Item not found")
-    return templates.TemplateResponse(request, "partials/detail.html", {"item": item})
+    return await _detail_response(request, session, item)
 
 
 @router.post("/ui/upload")
@@ -566,7 +578,7 @@ async def toggle_spicy(
     if item is None:
         raise HTTPException(404, "Item not found")
     item = await items_svc.toggle_spicy(session, settings, search, item)
-    return templates.TemplateResponse(request, "partials/detail.html", {"item": item})
+    return await _detail_response(request, session, item)
 
 
 @router.post("/ui/items/{item_id}/tags", response_class=HTMLResponse)
@@ -581,7 +593,7 @@ async def add_tag(
     if item is None:
         raise HTTPException(404, "Item not found")
     item = await items_svc.add_tag(session, search, item, name)
-    return templates.TemplateResponse(request, "partials/detail.html", {"item": item})
+    return await _detail_response(request, session, item)
 
 
 @router.post("/ui/items/{item_id}/tags/{name}/delete", response_class=HTMLResponse)
@@ -596,7 +608,7 @@ async def remove_tag(
     if item is None:
         raise HTTPException(404, "Item not found")
     item = await items_svc.remove_tag(session, search, item, name)
-    return templates.TemplateResponse(request, "partials/detail.html", {"item": item})
+    return await _detail_response(request, session, item)
 
 
 # --- Telegram clients management (settings page) -----------------------------

@@ -19,13 +19,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from ..config import Settings
-from ..db.models import Item, VlmProfile, VlmText
+from ..db.models import Item, ItemTag, Tag, VlmProfile, VlmText
 from ..search.base import SearchBackend
 from .appsettings import effective_settings, ensure_profile_from_env
+from .library import SPICY_TAG
 from .media import make_thumbnail
 
 log = logging.getLogger(__name__)
@@ -33,14 +34,21 @@ log = logging.getLogger(__name__)
 PROMPT = """\
 You are indexing a meme library for full-text search.
 Return ONLY a JSON object with exactly these keys:
-{{"ocr_text": "...", "description": "..."}}
+{{"ocr_text": "...", "description": "...", "tags": ["..."]}}
 - ocr_text: all text visible in the image, transcribed verbatim in its original
   language ("" if there is none). For long walls of text, transcribe up to
   roughly the first 200 words and stop.
 - description: 1-3 sentences in {language} describing what the image shows and,
   if recognizable, the meme template or character names. Use words people would
   type when searching for this meme.
+- tags: 0-{max_tags} short lowercase tags in {language} for the topic, meme
+  template or vibe.{tags_hint}
 No markdown fences, no commentary — just the JSON object."""
+
+# At most this many AI tags may ride on one item, across all models.
+MAX_AI_TAGS_PER_ITEM = 4
+# How many existing tags to offer the model as its preferred vocabulary.
+TAGS_HINT_LIMIT = 40
 
 # Models often wrap JSON in ```json fences despite instructions.
 _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
@@ -84,14 +92,16 @@ class IndexerStatus:
 STATUS = IndexerStatus()
 
 
-def _parse_response(content: str) -> tuple[str, str]:
+def _parse_response(content: str) -> tuple[str, str, list[str]]:
     match = _JSON_RE.search(content)
     if not match:
         raise ValueError(f"no JSON object in VLM response: {content[:200]!r}")
     data = json.loads(match.group(0))
     ocr = str(data.get("ocr_text") or "").strip()
     description = str(data.get("description") or "").strip()
-    return ocr, description
+    raw_tags = data.get("tags") or []
+    tags = [str(t) for t in raw_tags] if isinstance(raw_tags, list) else []
+    return ocr, description, tags
 
 
 def _load_thumb_jpeg(settings: Settings, item: Item) -> bytes | None:
@@ -114,10 +124,22 @@ def _load_thumb_jpeg(settings: Settings, item: Item) -> bytes | None:
 
 
 async def describe_image(
-    client: httpx.AsyncClient, settings: Settings, jpeg: bytes
-) -> tuple[str, str]:
-    """One chat-completions call; returns (ocr_text, description)."""
+    client: httpx.AsyncClient,
+    settings: Settings,
+    jpeg: bytes,
+    tags_hint: str = "",
+) -> tuple[str, str, list[str]]:
+    """One chat-completions call; returns (ocr_text, description, tags)."""
     data_url = "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()
+    prompt = PROMPT.format(
+        language=settings.vlm_language,
+        max_tags=MAX_AI_TAGS_PER_ITEM - 1,
+        tags_hint=(
+            f" Prefer reusing these existing tags when they fit: {tags_hint}; "
+            f"invent a new tag only when none of them fits."
+            if tags_hint else ""
+        ),
+    )
     payload = {
         "model": settings.vlm_model,
         # Text-heavy memes (chat screenshots) need generous room — a tight cap
@@ -129,10 +151,7 @@ async def describe_image(
                 "role": "user",
                 "content": [
                     {"type": "image_url", "image_url": {"url": data_url}},
-                    {
-                        "type": "text",
-                        "text": PROMPT.format(language=settings.vlm_language),
-                    },
+                    {"type": "text", "text": prompt},
                 ],
             }
         ],
@@ -150,6 +169,50 @@ async def describe_image(
     return _parse_response(content)
 
 
+def _normalize_tag(raw: str) -> str:
+    return " ".join(raw.lower().split())[:32]
+
+
+async def _apply_ai_tags(
+    session: AsyncSession,
+    search: SearchBackend,
+    item: Item,
+    tag_names: list[str],
+) -> list[str]:
+    """Attach model-proposed tags (marked source='ai') and refresh the FTS row.
+
+    Dedupes against the item's existing tags, never touches the reserved
+    spicy tag, and caps the number of AI tags per item."""
+    existing = dict(
+        (
+            await session.execute(
+                select(Tag.name, ItemTag.source)
+                .join(ItemTag, ItemTag.tag_id == Tag.id)
+                .where(ItemTag.item_id == item.id)
+            )
+        ).all()
+    )
+    ai_count = sum(1 for source in existing.values() if source == "ai")
+    added: list[str] = []
+    for raw in tag_names:
+        name = _normalize_tag(raw)
+        if not name or name == SPICY_TAG or name in existing:
+            continue
+        if ai_count + len(added) >= MAX_AI_TAGS_PER_ITEM:
+            break
+        tag = await session.scalar(select(Tag).where(Tag.name == name))
+        if tag is None:
+            tag = Tag(name=name)
+            session.add(tag)
+            await session.flush()
+        session.add(ItemTag(item_id=item.id, tag_id=tag.id, source="ai"))
+        added.append(name)
+    if added:
+        await session.flush()
+        await search.index_item(session, item, tags=list(existing) + added)
+    return added
+
+
 async def _index_one(
     session: AsyncSession,
     trial: Settings,
@@ -157,6 +220,7 @@ async def _index_one(
     client: httpx.AsyncClient,
     item: Item,
     profile: SimpleNamespace,  # plain snapshot — survives session.rollback()
+    tags_hint: str = "",
 ) -> bool:
     jpeg = await asyncio.to_thread(_load_thumb_jpeg, trial, item)
     if jpeg is None:
@@ -165,16 +229,21 @@ async def _index_one(
         item.index_status = "failed"
         await session.commit()
         return False
-    ocr, description = await describe_image(client, trial, jpeg)
+    ocr, description, tags = await describe_image(client, trial, jpeg, tags_hint)
     fts_text = "\n".join(part for part in (ocr, description) if part)
     session.add(VlmText(item_id=item.id, profile_id=profile.id, text=fts_text))
     await search.index_vlm(session, item.id, profile.id, fts_text)
+    added_tags: list[str] = []
+    if trial.vlm_auto_tag and tags:
+        added_tags = await _apply_ai_tags(session, search, item, tags)
     item.index_status = "indexed"
     await session.commit()
     log.info("Indexed item %s with %s (%d chars OCR, %d chars description)",
              item.id, profile.name, len(ocr), len(description))
+    tag_note = f" 🏷 {', '.join(added_tags)}" if added_tags else ""
     STATUS.note(
-        f"{profile.name} / item {item.id}: ok — „{(description or ocr)[:70]}”"
+        f"{profile.name} / item {item.id}: ok — "
+        f"„{(description or ocr)[:70]}”{tag_note}"
     )
     return True
 
@@ -255,6 +324,20 @@ async def run_indexing(
                      STATUS.total, summary)
             STATUS.note(f"Starting — {summary}")
 
+            # Existing tags (most-used first) as the model's preferred
+            # vocabulary, so auto-tagging converges instead of sprawling.
+            tags_hint = ""
+            if settings.vlm_auto_tag:
+                rows = await session.execute(
+                    select(Tag.name)
+                    .join(ItemTag, ItemTag.tag_id == Tag.id)
+                    .where(Tag.name != SPICY_TAG)
+                    .group_by(Tag.id)
+                    .order_by(func.count(ItemTag.item_id).desc())
+                    .limit(TAGS_HINT_LIMIT)
+                )
+                tags_hint = ", ".join(name for (name,) in rows)
+
             async with httpx.AsyncClient(timeout=120, transport=transport) as client:
                 for profile, item_ids in queues:
                     trial = settings.model_copy(
@@ -276,7 +359,8 @@ async def run_indexing(
                                     break
                                 try:
                                     if await _index_one(
-                                        session, trial, search, client, item, profile
+                                        session, trial, search, client,
+                                        item, profile, tags_hint,
                                     ):
                                         indexed += 1
                                         consecutive_failures = 0

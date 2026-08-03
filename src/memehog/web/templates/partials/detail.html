@@ -8,7 +8,8 @@
     <div class="tags">
       {% if is_spicy %}<span class="tag spicy-chip" title="Spicy">🔥</span>{% endif %}
       {% for t in item.tags if t.name != 'spicy' %}
-      <span class="tag">{{ t.name }}
+      <span class="tag{{ ' ai' if t.name in ai_tags else '' }}"
+            {% if t.name in ai_tags %}title="Tag added by AI"{% endif %}>{{ t.name }}
         <button hx-post="/ui/items/{{ item.id }}/tags/{{ t.name | urlencode }}/delete"
                 hx-target="#pswp-meme-bar" hx-swap="innerHTML" title="Remove tag">✕</button>
       </span>

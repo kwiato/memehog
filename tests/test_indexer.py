@@ -377,6 +377,52 @@ async def test_one_bad_reply_does_not_kill_the_batch(
         assert (await items_svc.get_item(session, good.id)).index_status == "indexed"
 
 
+async def test_auto_tagging(client, settings, session_factory, search):
+    vlm_settings(settings)
+    item = await ingest_png(session_factory, settings, search)
+    async with session_factory() as session:
+        fresh = await items_svc.get_item(session, item.id)
+        await items_svc.add_tag(session, search, fresh, "bobr")  # user tag
+
+    reply = {
+        "ocr_text": "",
+        "description": "bóbr w kapeluszu",
+        # "Bobr" dedupes with the user tag, "spicy" is reserved, and the
+        # per-item AI cap (4) trims the tail.
+        "tags": ["Bobr", "zwierzęta", "spicy", "kapelusz", "natura", "las", "woda"],
+    }
+    indexed = await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(reply)
+    )
+    assert indexed == 1
+
+    async with session_factory() as session:
+        ai = await items_svc.ai_tag_names(session, item.id)
+        assert ai == {"zwierzęta", "kapelusz", "natura", "las"}
+        # AI tags work in the gallery tag filter and in FTS
+        hits = await items_svc.list_items(session, search, q="", tag="kapelusz")
+        assert [h.id for h in hits] == [item.id]
+        hits = await items_svc.list_items(session, search, q="natura")
+        assert [h.id for h in hits] == [item.id]
+
+    resp = await client.get(f"/ui/items/{item.id}/detail")
+    assert "tag ai" in resp.text  # AI tags are visually marked
+
+
+async def test_auto_tagging_can_be_disabled(settings, session_factory, search):
+    vlm_settings(settings)
+    settings.vlm_auto_tag = False
+    item = await ingest_png(session_factory, settings, search)
+
+    reply = {"ocr_text": "", "description": "x", "tags": ["kot", "pies"]}
+    indexed = await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(reply)
+    )
+    assert indexed == 1
+    async with session_factory() as session:
+        assert await items_svc.ai_tag_names(session, item.id) == set()
+
+
 async def test_timeout_is_retried_like_transient(
     settings, session_factory, search, monkeypatch
 ):

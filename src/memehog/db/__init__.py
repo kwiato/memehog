@@ -79,6 +79,17 @@ async def _migrate(conn) -> None:
             text("ALTER TABLE jobs ADD COLUMN spicy BOOLEAN NOT NULL DEFAULT 0")
         )
 
+    cols = {
+        row[1] for row in await conn.execute(text("PRAGMA table_info(item_tags)"))
+    }
+    if "source" not in cols:
+        await conn.execute(
+            text(
+                "ALTER TABLE item_tags "
+                "ADD COLUMN source VARCHAR(8) NOT NULL DEFAULT 'user'"
+            )
+        )
+
     # v0.5: single "selected" VLM profile → per-profile active toggles, with
     # OCR/description text stored per profile (vlm_texts + vlm_fts). Migrate
     # the legacy single-model data under the previously selected profile.

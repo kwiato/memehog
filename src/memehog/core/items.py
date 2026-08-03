@@ -107,6 +107,16 @@ async def count_items(session: AsyncSession) -> int:
     return (await session.scalar(select(func.count(Item.id)))) or 0
 
 
+async def ai_tag_names(session: AsyncSession, item_id: int) -> set[str]:
+    """Names of this item's tags that were attached by the AI indexer."""
+    rows = await session.execute(
+        select(Tag.name)
+        .join(ItemTag, ItemTag.tag_id == Tag.id)
+        .where(ItemTag.item_id == item_id, ItemTag.source == "ai")
+    )
+    return {name for (name,) in rows}
+
+
 async def all_tags(session: AsyncSession, include_spicy: bool = False) -> list[Tag]:
     stmt = select(Tag).order_by(Tag.name)
     if not include_spicy:

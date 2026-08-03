@@ -19,6 +19,7 @@ VLM_FIELDS: tuple[str, ...] = (
     "vlm_rpm",
     "vlm_max_per_run",
     "vlm_index_spicy",
+    "vlm_auto_tag",
 )
 
 
@@ -27,7 +28,7 @@ def _parse_vlm(field: str, value: str):
         return float(value)
     if field == "vlm_max_per_run":
         return int(value)
-    if field == "vlm_index_spicy":
+    if field in ("vlm_index_spicy", "vlm_auto_tag"):
         return value.strip().lower() in ("1", "true", "on", "yes")
     return value.strip()
 

@@ -72,6 +72,8 @@ class ItemTag(Base):
     tag_id: Mapped[int] = mapped_column(
         ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True
     )
+    # Who attached the tag: "user" (bot caption, web UI) or "ai" (the indexer).
+    source: Mapped[str] = mapped_column(String(8), default="user")
 
 
 class Embedding(Base):

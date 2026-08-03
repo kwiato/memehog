@@ -60,6 +60,12 @@
   padding: 3px 10px;
   font-size: 13px;
 
+  // Tags attached by the AI indexer — same behavior, distinct look.
+  &.ai {
+    background: transparent;
+    border: 1px dashed var(--muted);
+  }
+
   button {
     background: none;
     border: none;

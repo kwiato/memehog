@@ -28,6 +28,12 @@
       Index 🔥 spicy memes too
       <span class="muted">(free API tiers may use inputs for training)</span>
     </label>
+    <label class="vlm-checkbox">
+      <input type="checkbox" name="auto_tag" value="1"
+             {{ 'checked' if vlm.vlm_auto_tag else '' }}>
+      🏷 Auto-tag memes
+      <span class="muted">(AI tags show dashed and can be removed like any tag)</span>
+    </label>
     <div class="vlm-actions">
       <button class="btn primary" type="submit">Save</button>
       <button class="btn" type="button" hx-post="/ui/settings/vlm/run"
