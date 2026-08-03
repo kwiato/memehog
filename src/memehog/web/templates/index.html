@@ -385,5 +385,15 @@
     if (!card) return;
     lightbox.loadAndOpen(gridCards().indexOf(card));
   });
+
+  // With the Info modal open on top of the lightbox, Escape should close only
+  // the modal — capture-phase so PhotoSwipe's own Esc handler never sees it.
+  document.addEventListener('keydown', (e) => {
+    const modal = document.getElementById('modal');
+    if (e.key === 'Escape' && modal.innerHTML.trim()) {
+      e.stopImmediatePropagation();
+      modal.innerHTML = '';
+    }
+  }, true);
 </script>
 {% endblock %}
