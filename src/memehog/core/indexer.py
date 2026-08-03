@@ -35,7 +35,8 @@ You are indexing a meme library for full-text search.
 Return ONLY a JSON object with exactly these keys:
 {{"ocr_text": "...", "description": "..."}}
 - ocr_text: all text visible in the image, transcribed verbatim in its original
-  language ("" if there is none).
+  language ("" if there is none). For long walls of text, transcribe up to
+  roughly the first 200 words and stop.
 - description: 1-3 sentences in {language} describing what the image shows and,
   if recognizable, the meme template or character names. Use words people would
   type when searching for this meme.
@@ -119,7 +120,10 @@ async def describe_image(
     data_url = "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()
     payload = {
         "model": settings.vlm_model,
-        "max_tokens": 600,
+        # Text-heavy memes (chat screenshots) need generous room — a tight cap
+        # truncates the JSON mid-string. Output tokens are billed as used, so
+        # the high ceiling costs nothing on ordinary memes.
+        "max_tokens": 2048,
         "messages": [
             {
                 "role": "user",
@@ -242,23 +246,31 @@ async def run_indexing(
                                     indexed += 1
                                     consecutive_failures = 0
                                 break
-                            except httpx.HTTPStatusError as exc:
-                                code = exc.response.status_code
+                            except (
+                                httpx.HTTPStatusError,
+                                httpx.TransportError,
+                            ) as exc:
+                                # Timeouts and network errors are transient by
+                                # nature; HTTP errors only for overload codes.
+                                if isinstance(exc, httpx.HTTPStatusError):
+                                    code = exc.response.status_code
+                                    label = f"HTTP {code}"
+                                    detail = exc.response.text[:120]
+                                    transient = code in TRANSIENT_HTTP
+                                else:
+                                    label = type(exc).__name__
+                                    detail = str(exc)[:120]
+                                    transient = True
                                 await session.rollback()
-                                if (
-                                    code in TRANSIENT_HTTP
-                                    and attempts < len(TRANSIENT_BACKOFF)
-                                ):
-                                    # Overloaded model / rate limit — wait and
-                                    # retry the same item.
+                                if transient and attempts < len(TRANSIENT_BACKOFF):
                                     wait = TRANSIENT_BACKOFF[attempts]
                                     attempts += 1
                                     log.info(
-                                        "VLM API HTTP %s — retry %d/%d in %ds",
-                                        code, attempts, len(TRANSIENT_BACKOFF), wait,
+                                        "VLM API %s — retry %d/%d in %ds",
+                                        label, attempts, len(TRANSIENT_BACKOFF), wait,
                                     )
                                     STATUS.note(
-                                        f"HTTP {code} (overloaded?) — retry "
+                                        f"{label} (transient) — retry "
                                         f"{attempts}/{len(TRANSIENT_BACKOFF)} "
                                         f"in {wait}s"
                                     )
@@ -268,13 +280,12 @@ async def run_indexing(
                                 # survived all retries — stop the whole run and
                                 # leave the rest pending for next night.
                                 log.warning(
-                                    "VLM API returned %s — stopping this run: %s",
-                                    code, exc.response.text[:300],
+                                    "VLM API error %s — stopping this run: %s",
+                                    label, detail,
                                 )
                                 STATUS.note(
-                                    f"API error HTTP {code}: "
-                                    f"{exc.response.text[:120]} — run stopped, "
-                                    f"the rest stays pending"
+                                    f"API error {label}: {detail} — run "
+                                    f"stopped, the rest stays pending"
                                 )
                                 stop_run = True
                                 break
@@ -282,7 +293,10 @@ async def run_indexing(
                             break
                     except Exception as exc:  # noqa: BLE001 - keep the batch alive
                         log.exception("VLM indexing failed for item %s", item_id)
-                        STATUS.note(f"Item {item_id}: error — {str(exc)[:120]}")
+                        STATUS.note(
+                            f"Item {item_id}: error — "
+                            f"{type(exc).__name__}: {str(exc)[:110]}"
+                        )
                         await session.rollback()
                         consecutive_failures += 1
                         if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:

@@ -284,6 +284,36 @@ async def test_one_bad_reply_does_not_kill_the_batch(
         assert (await items_svc.get_item(session, good.id)).index_status == "indexed"
 
 
+async def test_timeout_is_retried_like_transient(
+    settings, session_factory, search, monkeypatch
+):
+    from memehog.core import indexer as indexer_mod
+
+    monkeypatch.setattr(indexer_mod, "TRANSIENT_BACKOFF", (0, 0, 0))
+    vlm_settings(settings)
+    item = await ingest_png(session_factory, settings, search)
+
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise httpx.ReadTimeout("")  # empty message, like real httpx timeouts
+        reply = json.dumps({"ocr_text": "", "description": "po timeoucie działa"})
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": reply}}]}
+        )
+
+    indexed = await run_indexing(
+        session_factory, settings, search, transport=httpx.MockTransport(handler)
+    )
+    assert indexed == 1
+    assert calls["n"] == 2
+    async with session_factory() as session:
+        fresh = await items_svc.get_item(session, item.id)
+        assert fresh.index_status == "indexed"
+
+
 async def test_api_error_leaves_items_pending(settings, session_factory, search):
     vlm_settings(settings)
     item = await ingest_png(session_factory, settings, search)
