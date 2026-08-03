@@ -37,7 +37,9 @@
 // --- PhotoSwipe: tags + actions bar under the image ---
 // Sit the lightbox below #modal (z-index 100), so the Info modal opened from
 // its kebab menu renders on top; PhotoSwipe's own default is z-index 100000.
-.pswp { --pswp-root-z-index: 90; }
+// Doubled class: photoswipe.css loads after style.css, so plain `.pswp` would
+// lose the cascade to the vendor's own `--pswp-root-z-index: 100000`.
+.pswp.pswp { --pswp-root-z-index: 90; }
 .pswp-meme-bar {
   position: absolute;
   left: 0;
