@@ -37,13 +37,13 @@
     <label class="vlm-checkbox">
       <input type="checkbox" name="index_spicy" value="1"
              {{ 'checked' if vlm.vlm_index_spicy else '' }}>
-      Index 🔥 spicy memes too
+      Index <i class="bi bi-fire"></i> spicy memes too
       <span class="muted">(free API tiers may use inputs for training)</span>
     </label>
     <label class="vlm-checkbox">
       <input type="checkbox" name="auto_tag" value="1"
              {{ 'checked' if vlm.vlm_auto_tag else '' }}>
-      🏷 Auto-tag memes
+      <i class="bi bi-tag"></i> Auto-tag memes
       <span class="muted">(AI tags show dashed and can be removed like any tag)</span>
     </label>
     <div class="vlm-actions">
@@ -51,7 +51,7 @@
       <button class="btn" type="button" hx-post="/ui/settings/vlm/run"
               hx-target="#vlm-status" hx-swap="outerHTML" hx-disabled-elt="this"
               hx-confirm="Run the indexer on all pending memes now? (Uses saved settings — hit Save first if you changed anything.)"
-              >▶ Run indexer now<span class="spin"></span></button>
+              ><i class="bi bi-play-fill"></i> Run indexer now<span class="spin"></span></button>
     </div>
   </form>
   {% include "partials/vlm_status.html" %}

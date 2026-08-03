@@ -1,7 +1,7 @@
 <div id="vlm-status" class="vlm-status"
      {% if status.running %}hx-get="/ui/settings/vlm/status" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
   {% if status.running %}
-  <p class="vlm-progress">⏳ Indexing… {{ status.processed }}/{{ status.total }}
+  <p class="vlm-progress"><i class="bi bi-hourglass-split"></i> Indexing… {{ status.processed }}/{{ status.total }}
     ({{ status.indexed }} ok)</p>
   {% elif status.log %}
   <p class="vlm-progress">Last run: {{ status.indexed }}/{{ status.total }} indexed</p>

@@ -1,12 +1,12 @@
-<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
+﻿<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
   <div class="modal-box panel item-info">
-    <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
+    <button class="close" onclick="document.getElementById('modal').innerHTML = ''"><i class="bi bi-x-lg"></i></button>
     <div class="info-header">
-      <h2>ℹ️ Meme #{{ item.id }}</h2>
+      <h2><i class="bi bi-info-circle"></i> Meme #{{ item.id }}</h2>
       <button class="btn small" hx-post="/ui/items/{{ item.id }}/reindex"
               hx-target="#modal" hx-swap="innerHTML" hx-disabled-elt="this"
               title="Run every active model on this meme now, replacing their previous descriptions"
-              >🔄 Re-run AI now<span class="spin"></span></button>
+              ><i class="bi bi-arrow-repeat"></i> Re-run AI now<span class="spin"></span></button>
     </div>
     {% if notices %}
     <ul class="reindex-notices">
@@ -53,7 +53,7 @@
       {% for name, source in tag_rows %}
       <span class="tag{{ ' ai' if source == 'ai' else '' }}{{ ' spicy-chip' if name == 'spicy' else '' }}"
             title="{{ 'Added by AI' if source == 'ai' else 'Added by you' }}">
-        {{ name }}{% if source == 'ai' %} 🤖{% endif %}
+        {{ name }}{% if source == 'ai' %} <i class="bi bi-robot"></i>{% endif %}
       </span>
       {% endfor %}
     </div>
@@ -65,7 +65,7 @@
     {% for vt, profile in model_texts %}
     <div class="info-model">
       <h4>
-        🤖 {{ profile.name if profile else 'deleted model #' ~ vt.profile_id }}
+        <i class="bi bi-robot"></i> {{ profile.name if profile else 'deleted model #' ~ vt.profile_id }}
         <span class="muted">
           {% if profile %}{{ profile.model }} · {% endif %}
           indexed {{ vt.created_at.strftime('%Y-%m-%d %H:%M') }}
@@ -89,7 +89,7 @@
     <h3>Benchmark samples</h3>
     {% for s in samples %}
     <div class="info-model">
-      <h4>🏁 {{ s.model_label }}
+      <h4><i class="bi bi-flag"></i> {{ s.model_label }}
         <span class="muted">{{ s.latency_ms }} ms · {{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
       </h4>
       {% if s.error %}

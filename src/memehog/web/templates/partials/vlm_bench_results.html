@@ -1,7 +1,7 @@
-<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
+﻿<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
   <div class="modal-box panel bench-results">
-    <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
-    <h2>📊 Model benchmark results</h2>
+    <button class="close" onclick="document.getElementById('modal').innerHTML = ''"><i class="bi bi-x-lg"></i></button>
+    <h2><i class="bi bi-bar-chart"></i> Model benchmark results</h2>
 
     {% if not labels %}
     <p class="muted">No benchmark results yet — configure models in

@@ -10,7 +10,7 @@
     <button class="btn small" hx-post="/ui/tags/clean"
             hx-confirm="Delete every tag that isn't attached to any meme?"
             hx-target="#tags-panel" hx-swap="outerHTML"
-            >🧹 Clean all unused<span class="spin"></span></button>
+            ><i class="bi bi-eraser"></i> Clean all unused<span class="spin"></span></button>
   </div>
 
   <table class="clients-table">
@@ -30,17 +30,17 @@
         </td>
         <td>
           {{ t.items }}
-          {% if t.ai_items %}<span class="muted">({{ t.ai_items }} by AI 🤖)</span>{% endif %}
+          {% if t.ai_items %}<span class="muted">({{ t.ai_items }} by AI <i class="bi bi-robot"></i>)</span>{% endif %}
           {% if t.items == 0 %}<span class="muted">unused</span>{% endif %}
         </td>
         <td class="row-actions">
           {% if t.name == 'spicy' %}
-          <span class="muted" title="System tag — drives the 🔥 view and file placement">system</span>
+          <span class="muted" title="System tag — drives the spicy view and file placement">system</span>
           {% else %}
-          <button class="btn small danger"
+          <button class="btn small danger" title="Delete tag"
                   hx-post="/ui/tags/{{ t.name | urlencode }}/delete"
                   hx-confirm="Remove tag '{{ t.name }}' from {{ t.items }} meme(s)?"
-                  hx-target="#tags-panel" hx-swap="outerHTML">🗑</button>
+                  hx-target="#tags-panel" hx-swap="outerHTML"><i class="bi bi-trash"></i></button>
           {% endif %}
         </td>
       </tr>

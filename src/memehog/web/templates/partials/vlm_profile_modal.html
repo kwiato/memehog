@@ -1,7 +1,7 @@
 <div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
   <div class="modal-box panel">
-    <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
-    <h2>{{ '✏️ Edit AI model' if profile else '＋ Add AI model' }}</h2>
+    <button class="close" onclick="document.getElementById('modal').innerHTML = ''"><i class="bi bi-x-lg"></i></button>
+    <h2>{% if profile %}<i class="bi bi-pencil"></i> Edit AI model{% else %}<i class="bi bi-plus-lg"></i> Add AI model{% endif %}</h2>
 
     <form class="vlm-form"
           hx-post="{{ '/ui/vlm/profiles/%d'|format(profile.id) if profile else '/ui/vlm/profiles' }}"
@@ -41,7 +41,7 @@
       <div class="vlm-actions">
         <button class="btn" type="button" hx-post="/ui/settings/vlm/test"
                 hx-include="closest form" hx-target="#vlm-test-result"
-                hx-swap="innerHTML" hx-disabled-elt="this">🧪 Test connection<span class="spin"></span></button>
+                hx-swap="innerHTML" hx-disabled-elt="this"><i class="bi bi-plug"></i> Test connection<span class="spin"></span></button>
         <button class="btn primary" type="submit">{{ 'Save changes' if profile else 'Save model' }}</button>
         <span id="vlm-test-result"></span>
       </div>
@@ -62,7 +62,7 @@
           url: "https://openrouter.ai/api/v1",
           models: ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free",
                    "nvidia/nemotron-nano-12b-v2-vl:free", "openrouter/free"],
-          info: '⚠️ <code>openrouter/free</code> is a roulette over the free pool — it can land on ' +
+          info: '<i class="bi bi-exclamation-triangle"></i> <code>openrouter/free</code> is a roulette over the free pool — it can land on ' +
                 'a moderation model (Llama Guard) that outputs safety labels instead of descriptions. ' +
                 'For indexing, pin a specific free <em>vision</em> model from ' +
                 '<a href="https://openrouter.ai/models?max_price=0" target="_blank" rel="noopener">openrouter.ai/models</a> ' +

@@ -90,7 +90,7 @@ async def test_tags_tab_and_endpoints(client, settings, session_factory, search)
     assert page.status_code == 200
     assert "kot" in page.text
     assert "Clean all unused" in page.text
-    assert "(1 by AI 🤖)" in page.text
+    assert "(1 by AI" in page.text
 
     resp = await client.post("/ui/tags/kot/delete")
     assert resp.status_code == 200

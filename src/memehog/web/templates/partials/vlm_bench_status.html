@@ -1,7 +1,7 @@
 <div id="vlm-bench-status" class="vlm-status"
      {% if bench.running %}hx-get="/ui/settings/vlm/bench/status" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
   {% if bench.running %}
-  <p class="vlm-progress">⏳ Benchmark… {{ bench.processed }}/{{ bench.total }}
+  <p class="vlm-progress"><i class="bi bi-hourglass-split"></i> Benchmark… {{ bench.processed }}/{{ bench.total }}
     ({{ bench.indexed }} ok)</p>
   {% endif %}
   {% if bench.log %}

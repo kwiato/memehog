@@ -34,12 +34,12 @@
                 hx-target="#profile-test-{{ p.id }}" hx-swap="innerHTML"
                 hx-disabled-elt="this"
                 hx-on::before-request="document.getElementById('profile-test-{{ p.id }}').innerHTML = ''"
-                >🧪 Test<span class="spin"></span></button>
-        <button class="btn small" hx-get="/ui/vlm/profiles/{{ p.id }}/edit"
-                hx-target="#modal" hx-swap="innerHTML">✏️</button>
-        <button class="btn small danger" hx-post="/ui/vlm/profiles/{{ p.id }}/delete"
+                ><i class="bi bi-plug"></i> Test<span class="spin"></span></button>
+        <button class="btn small" title="Edit" hx-get="/ui/vlm/profiles/{{ p.id }}/edit"
+                hx-target="#modal" hx-swap="innerHTML"><i class="bi bi-pencil"></i></button>
+        <button class="btn small danger" title="Delete" hx-post="/ui/vlm/profiles/{{ p.id }}/delete"
                 hx-confirm="Delete model '{{ p.name }}'?"
-                hx-target="#profiles" hx-swap="innerHTML">🗑</button>
+                hx-target="#profiles" hx-swap="innerHTML"><i class="bi bi-trash"></i></button>
       </td>
     </tr>
     {% endfor %}

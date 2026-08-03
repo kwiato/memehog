@@ -451,17 +451,19 @@ async def _run_vlm_test(
             )
         reply = description or ocr or "(empty reply)"
         return HTMLResponse(
-            f'<span class="vlm-test ok">✅ Works! Model replied: '
-            f'&bdquo;{html.escape(reply[:160])}&rdquo;</span>'
+            f'<span class="vlm-test ok"><i class="bi bi-check-circle"></i> '
+            f'Works! Model replied: &bdquo;{html.escape(reply[:160])}&rdquo;</span>'
         )
     except httpx.HTTPStatusError as exc:
         detail = f"HTTP {exc.response.status_code}: {exc.response.text[:160]}"
         return HTMLResponse(
-            f'<span class="vlm-test error">❌ {html.escape(detail)}</span>'
+            f'<span class="vlm-test error"><i class="bi bi-x-circle"></i> '
+            f'{html.escape(detail)}</span>'
         )
     except Exception as exc:  # noqa: BLE001 - show whatever went wrong
         return HTMLResponse(
-            f'<span class="vlm-test error">❌ {html.escape(str(exc)[:160])}</span>'
+            f'<span class="vlm-test error"><i class="bi bi-x-circle"></i> '
+            f'{html.escape(str(exc)[:160])}</span>'
         )
 
 

@@ -4,17 +4,17 @@
 <header class="topbar">
   <h1><a class="logo" href="/">🐗 Memehog</a></h1>
   <nav class="main-nav">
-    <a class="btn" href="/">🖼 Gallery</a>
-    <a class="btn active" href="/settings">⚙️ Settings</a>
-    <button class="btn" hx-get="/ui/about" hx-target="#modal" hx-swap="innerHTML">ℹ️ About</button>
+    <a class="btn" href="/"><i class="bi bi-images"></i> Gallery</a>
+    <a class="btn active" href="/settings"><i class="bi bi-gear"></i> Settings</a>
+    <button class="btn" hx-get="/ui/about" hx-target="#modal" hx-swap="innerHTML"><i class="bi bi-info-circle"></i> About</button>
   </nav>
 </header>
 
 <main class="settings-page">
   <nav class="tabs">
-    <a href="/settings" class="tab {{ 'active' if tab == 'general' else '' }}">⚙️ General</a>
-    <a href="/settings?tab=ai" class="tab {{ 'active' if tab == 'ai' else '' }}">🤖 AI models</a>
-    <a href="/settings?tab=tags" class="tab {{ 'active' if tab == 'tags' else '' }}">🏷 Tags</a>
+    <a href="/settings" class="tab {{ 'active' if tab == 'general' else '' }}"><i class="bi bi-sliders"></i> General</a>
+    <a href="/settings?tab=ai" class="tab {{ 'active' if tab == 'ai' else '' }}"><i class="bi bi-robot"></i> AI models</a>
+    <a href="/settings?tab=tags" class="tab {{ 'active' if tab == 'tags' else '' }}"><i class="bi bi-tags"></i> Tags</a>
   </nav>
 
   <div class="tab-panel">

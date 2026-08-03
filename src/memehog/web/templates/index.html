@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block head %}
 <link rel="stylesheet" href="/static/vendor/photoswipe/photoswipe.css">
 <link rel="stylesheet" href="/static/vendor/cropperjs/cropper.min.css">
@@ -39,9 +39,9 @@
       </select>
       {% if langs %}
       <details class="dropdown lang-filter" title="Language of the meme's text (AI-detected)">
-        <summary class="btn"><span id="lang-current">🌐</span></summary>
+        <summary class="btn"><span id="lang-current"><i class="bi bi-globe2"></i></span></summary>
         <div class="dropdown-menu">
-          <button type="button" data-lang="">🌐 All languages</button>
+          <button type="button" data-lang=""><i class="bi bi-globe2"></i> All languages</button>
           {% for l in langs %}
           <button type="button" data-lang="{{ l.code }}">
             {% if l.flag %}<img class="flag" src="{{ l.flag }}" alt="">{% endif %}
@@ -54,21 +54,21 @@
       {% endif %}
       {% if search_profiles|length > 1 %}
       <select name="model" title="Which AI model's descriptions to search">
-        <option value="">🤖 All models</option>
-        {% for p in search_profiles %}<option value="{{ p.id }}">🤖 {{ p.name }}</option>{% endfor %}
+        <option value="">All models</option>
+        {% for p in search_profiles %}<option value="{{ p.id }}">AI: {{ p.name }}</option>{% endfor %}
       </select>
       {% endif %}
       <input type="hidden" name="spicy" value="0">
     </div>
   </form>
   <div class="top-actions">
-    <button class="btn spicy-btn" title="Spicy mode" onclick="toggleSpicy(this)">🔥</button>
+    <button class="btn spicy-btn" title="Spicy mode" onclick="toggleSpicy(this)"><i class="bi bi-fire"></i></button>
     <details class="dropdown">
-      <summary class="btn" title="Menu">☰</summary>
+      <summary class="btn" title="Menu"><i class="bi bi-list"></i></summary>
       <nav class="dropdown-menu">
-        <button onclick="location.href='/settings'">⚙️ Settings</button>
+        <button onclick="location.href='/settings'"><i class="bi bi-gear"></i> Settings</button>
         <button hx-get="/ui/about" hx-target="#modal" hx-swap="innerHTML"
-                onclick="this.closest('details').removeAttribute('open')">ℹ️ About</button>
+                onclick="this.closest('details').removeAttribute('open')"><i class="bi bi-info-circle"></i> About</button>
       </nav>
     </details>
   </div>
@@ -87,7 +87,7 @@
 
 <div id="upload-modal" class="modal-backdrop upload-modal" onclick="if (event.target === this) closeUpload()">
   <div class="modal-box panel">
-    <button class="close" onclick="closeUpload()">✕</button>
+    <button class="close" onclick="closeUpload()"><i class="bi bi-x-lg"></i></button>
     <h2>Add memes</h2>
     <form id="upload-form" action="/ui/upload" method="post" enctype="multipart/form-data">
       <label class="dropzone">
@@ -103,7 +103,7 @@
             <input type="text" name="caption" placeholder="Description for search">
           </label>
           <button type="button" id="upload-spicy-btn" class="btn spicy-btn"
-                  title="Upload as spicy" onclick="this.classList.toggle('active')">🔥</button>
+                  title="Upload as spicy" onclick="this.classList.toggle('active')"><i class="bi bi-fire"></i></button>
         </div>
       </div>
       <input type="hidden" name="spicy" value="0">
@@ -114,9 +114,9 @@
 
 <div id="drop-overlay" class="drop-overlay">
   <div class="drop-inner">
-    <div class="drop-icon">📥</div>
+    <div class="drop-icon"><i class="bi bi-box-arrow-in-down"></i></div>
     <p>Drop to add to the library</p>
-    <p class="drop-spicy">🔥 spicy mode on — going straight to the spicy stash</p>
+    <p class="drop-spicy"><i class="bi bi-fire"></i> spicy mode on — going straight to the spicy stash</p>
   </div>
 </div>
 
@@ -145,7 +145,7 @@
       const current = document.getElementById('lang-current');
       input.value = opt.dataset.lang;
       const flag = opt.querySelector('img.flag');
-      current.innerHTML = flag ? flag.outerHTML : '🌐';
+      current.innerHTML = flag ? flag.outerHTML : '<i class="bi bi-globe2"></i>';
       opt.closest('details').removeAttribute('open');
       input.dispatchEvent(new Event('change', { bubbles: true }));
     });

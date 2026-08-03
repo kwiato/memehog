@@ -482,7 +482,8 @@ async def test_item_info_shows_per_model_data(
     assert "test-vision" in resp.text          # profile name (from env shim)
     assert "Zdziwiony bóbr" in resp.text       # description, separately…
     assert "BOBER KURWA" in resp.text          # …from the OCR text
-    assert "bóbr 🤖" in resp.text              # AI tag marked as such
+    assert "bóbr" in resp.text
+    assert "bi-robot" in resp.text             # AI tag marked as such
     assert f"Meme #{item.id}" in resp.text
 
 

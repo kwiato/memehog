@@ -1,4 +1,4 @@
-{# Tags + actions bar shown under the image inside the PhotoSwipe lightbox.
+﻿{# Tags + actions bar shown under the image inside the PhotoSwipe lightbox.
    Loaded into #pswp-meme-bar on every slide change; the buttons re-render
    this same fragment in place. #}
 {% set is_spicy = item.tags | selectattr('name', 'equalto', 'spicy') | list | length > 0 %}
@@ -6,12 +6,12 @@
   {% if item.caption %}<p class="caption">{{ item.caption }}</p>{% endif %}
   <div class="meta-row">
     <div class="tags">
-      {% if is_spicy %}<span class="tag spicy-chip" title="Spicy">🔥</span>{% endif %}
+      {% if is_spicy %}<span class="tag spicy-chip" title="Spicy"><i class="bi bi-fire"></i></span>{% endif %}
       {% for t in item.tags if t.name != 'spicy' %}
       <span class="tag{{ ' ai' if t.name in ai_tags else '' }}"
             {% if t.name in ai_tags %}title="Tag added by AI"{% endif %}>{{ t.name }}
         <button hx-post="/ui/items/{{ item.id }}/tags/{{ t.name | urlencode }}/delete"
-                hx-target="#pswp-meme-bar" hx-swap="innerHTML" title="Remove tag">✕</button>
+                hx-target="#pswp-meme-bar" hx-swap="innerHTML" title="Remove tag"><i class="bi bi-x-lg"></i></button>
       </span>
       {% endfor %}
       <form class="tag-form" hx-post="/ui/items/{{ item.id }}/tags"
@@ -20,27 +20,27 @@
       </form>
     </div>
     <div class="actions">
-      <a class="btn" href="/media/{{ item.filename }}" download>⬇ Download</a>
-      <button class="btn" onclick="shareItem('/media/{{ item.filename }}')">📤 Share</button>
+      <a class="btn" href="/media/{{ item.filename }}" download><i class="bi bi-download"></i> Download</a>
+      <button class="btn" onclick="shareItem('/media/{{ item.filename }}')"><i class="bi bi-share"></i> Share</button>
       <button class="btn spicy-btn{{ ' active' if is_spicy }}"
               title="{{ 'Unmark spicy' if is_spicy else 'Mark as spicy' }}"
               hx-post="/ui/items/{{ item.id }}/spicy"
-              hx-target="#pswp-meme-bar" hx-swap="innerHTML">🔥</button>
+              hx-target="#pswp-meme-bar" hx-swap="innerHTML"><i class="bi bi-fire"></i></button>
       <details class="dropdown kebab">
-        <summary class="btn" title="More">⋮</summary>
+        <summary class="btn" title="More"><i class="bi bi-three-dots-vertical"></i></summary>
         <div class="dropdown-menu">
           <button hx-get="/ui/items/{{ item.id }}/info"
                   hx-target="#modal" hx-swap="innerHTML"
                   onclick="this.closest('details').removeAttribute('open')"
-                  >ℹ️ Info</button>
+                  ><i class="bi bi-info-circle"></i> Info</button>
           <button class="danger" hx-post="/ui/items/{{ item.id }}/delete"
-                  hx-confirm="Delete this meme forever?">🗑 Delete</button>
+                  hx-confirm="Delete this meme forever?"><i class="bi bi-trash"></i> Delete</button>
         </div>
       </details>
     </div>
   </div>
   <details class="meta-details">
-    <summary title="Details">⌄</summary>
+    <summary title="Details"><i class="bi bi-chevron-down"></i></summary>
     <p class="muted">
       #{{ item.id }} · {{ item.created_at.strftime('%Y-%m-%d %H:%M') }} · {{ item.origin }}
       {% if item.uploader %} · {{ item.uploader }}{% endif %}

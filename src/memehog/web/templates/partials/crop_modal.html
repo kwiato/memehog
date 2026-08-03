@@ -1,12 +1,12 @@
-<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
+﻿<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
   <div class="modal-box panel crop-box">
-    <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
-    <h2>✂️ Crop meme #{{ item.id }}</h2>
+    <button class="close" onclick="document.getElementById('modal').innerHTML = ''"><i class="bi bi-x-lg"></i></button>
+    <h2><i class="bi bi-scissors"></i> Crop meme #{{ item.id }}</h2>
     <div class="crop-stage">
       <img id="crop-image" src="/media/{{ item.filename }}" alt="meme to crop">
     </div>
     <div class="vlm-actions">
-      <button class="btn primary" id="crop-save">💾 Save (replaces the original)<span class="spin"></span></button>
+      <button class="btn primary" id="crop-save"><i class="bi bi-save"></i> Save (replaces the original)<span class="spin"></span></button>
       <button class="btn" onclick="document.getElementById('modal').innerHTML = ''">Cancel</button>
       <span id="crop-status" class="vlm-test"></span>
     </div>
@@ -34,10 +34,10 @@
               const data = await resp.json();
               if (data.ok) { location.reload(); return; }
               status.className = 'vlm-test error';
-              status.textContent = '❌ ' + (data.error || 'crop failed');
+              status.textContent = 'Error: ' + (data.error || 'crop failed');
             } catch (err) {
               status.className = 'vlm-test error';
-              status.textContent = '❌ ' + err;
+              status.textContent = 'Error: ' + err;
             }
             btn.disabled = false;
             btn.classList.remove('htmx-request');

@@ -1,7 +1,7 @@
-<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
+﻿<div class="modal-backdrop" onclick="if (event.target === this) document.getElementById('modal').innerHTML = ''">
   <div class="modal-box panel error-log">
-    <button class="close" onclick="document.getElementById('modal').innerHTML = ''">✕</button>
-    <h2>📋 Error log — {{ profile.name }}</h2>
+    <button class="close" onclick="document.getElementById('modal').innerHTML = ''"><i class="bi bi-x-lg"></i></button>
+    <h2><i class="bi bi-journal-text"></i> Error log — {{ profile.name }}</h2>
     <p class="muted">
       <code>{{ profile.model }}</code> · last {{ errors|length }} error(s);
       entries older than a week are pruned automatically.
@@ -23,7 +23,7 @@
       </tbody>
     </table>
     {% else %}
-    <p class="muted">No errors recorded for this model. 🎉</p>
+    <p class="muted">No errors recorded for this model.</p>
     {% endif %}
   </div>
 </div>

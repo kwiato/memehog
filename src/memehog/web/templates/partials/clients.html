@@ -21,11 +21,11 @@
       <td class="row-actions">
         {% if c.status == 'pending' %}
         <button class="btn small" hx-post="/ui/clients/{{ c.telegram_id }}/approve"
-                hx-target="#clients" hx-swap="innerHTML">✅ Approve</button>
+                hx-target="#clients" hx-swap="innerHTML"><i class="bi bi-check-lg"></i> Approve</button>
         {% endif %}
-        <button class="btn small danger" hx-post="/ui/clients/{{ c.telegram_id }}/delete"
+        <button class="btn small danger" title="Remove" hx-post="/ui/clients/{{ c.telegram_id }}/delete"
                 hx-confirm="Remove this client's access?"
-                hx-target="#clients" hx-swap="innerHTML">🗑</button>
+                hx-target="#clients" hx-swap="innerHTML"><i class="bi bi-trash"></i></button>
       </td>
     </tr>
     {% endfor %}

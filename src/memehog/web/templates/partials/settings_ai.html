@@ -8,7 +8,7 @@
     {% include "partials/vlm_profiles.html" %}
   </div>
   <button class="btn primary" hx-get="/ui/vlm/profiles/new"
-          hx-target="#modal" hx-swap="innerHTML">＋ Add model</button>
+          hx-target="#modal" hx-swap="innerHTML"><i class="bi bi-plus-lg"></i> Add model</button>
 </section>
 
 <section>
@@ -25,9 +25,9 @@
       <label class="bench-sample">Sample
         <input type="number" name="sample_size" value="10" min="1" max="25">
       </label>
-      <button class="btn primary" type="submit">🏁 Run benchmark<span class="spin"></span></button>
+      <button class="btn primary" type="submit"><i class="bi bi-flag"></i> Run benchmark<span class="spin"></span></button>
       <button class="btn" type="button" hx-get="/ui/vlm/bench"
-              hx-target="#modal" hx-swap="innerHTML">📊 Results</button>
+              hx-target="#modal" hx-swap="innerHTML"><i class="bi bi-bar-chart"></i> Results</button>
     </div>
   </form>
   {% include "partials/vlm_bench_status.html" %}
