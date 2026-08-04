@@ -176,6 +176,22 @@ class VlmSample(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class Visitor(Base):
+    """Anonymous public-feed visitor (signed cookie or hashed IP).
+
+    `served` counts memes shown today (reset on day rollover); `credits` is a
+    consumable pool earned by "Feed the hog!" uploads, spent once the daily
+    limit is exceeded."""
+
+    __tablename__ = "visitors"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    day: Mapped[str] = mapped_column(String(10), default="")
+    served: Mapped[int] = mapped_column(Integer, default=0)
+    credits: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class AppSetting(Base):
     """Runtime-editable settings (web UI) that override .env defaults."""
 

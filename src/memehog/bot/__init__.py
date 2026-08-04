@@ -58,6 +58,56 @@ GUEST_REPLIES = {
 }
 
 
+def _vote_keyboard(submission_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="👍", callback_data=f"sub:ok:{submission_id}"),
+                InlineKeyboardButton(text="👎", callback_data=f"sub:no:{submission_id}"),
+            ]
+        ]
+    )
+
+
+async def send_submission_votes(
+    bot: Bot, settings: Settings, session, submission, header: str
+) -> None:
+    """Send a quarantined submission FILE with 👍/👎 buttons to every owner.
+
+    Used by the public "Feed the hog!" upload; the Telegram guest flow keeps
+    its copy_message variant (better fidelity). Vote messages are recorded so
+    the existing sub: callback can edit them after the decision."""
+    from ..core import submissions as subs_svc
+    from ..core.media import classify_extension
+
+    path = settings.pending_dir / submission.filename
+    keyboard = _vote_keyboard(submission.id)
+    kind = classify_extension(path) or "image"
+    refs: list[tuple[int, int]] = []
+    for admin_id in settings.allowed_ids:
+        try:
+            file = FSInputFile(path)
+            if kind == "video":
+                msg = await bot.send_video(
+                    admin_id, file, caption=header, reply_markup=keyboard
+                )
+            elif kind == "animation":
+                msg = await bot.send_animation(
+                    admin_id, file, caption=header, reply_markup=keyboard
+                )
+            else:
+                msg = await bot.send_photo(
+                    admin_id, file, caption=header, reply_markup=keyboard
+                )
+            refs.append((admin_id, msg.message_id))
+        except Exception as exc:  # noqa: BLE001 - admin may not have started the bot
+            log.warning("Couldn't send submission %s to admin %s: %s",
+                        submission.id, admin_id, exc)
+    if refs:
+        subs_svc.set_vote_msgs(submission, refs)
+        await session.commit()
+
+
 def extract_urls(message: Message) -> list[str]:
     text = message.text or message.caption or ""
     urls: list[str] = []
@@ -247,14 +297,7 @@ async def _handle_guest_media(message: Message, data: dict[str, Any]) -> None:
         )
         return
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="👍", callback_data=f"sub:ok:{submission.id}"),
-                InlineKeyboardButton(text="👎", callback_data=f"sub:no:{submission.id}"),
-            ]
-        ]
-    )
+    keyboard = _vote_keyboard(submission.id)
     who = f"@{user.username}" if user.username else user.full_name
     header = f"🗳 Meme submission #{submission.id} from {who}"
     if message.caption:
@@ -451,12 +494,12 @@ async def handle_links(message: Message, queue: DownloadQueue, **_: Any) -> None
 
 
 async def run_bot(
+    bot: Bot,
     settings: Settings,
     session_factory,
     search: SearchBackend,
     queue: DownloadQueue,
 ) -> None:
-    bot = Bot(token=settings.bot_token)
     dp = Dispatcher(
         settings=settings,
         session_factory=session_factory,

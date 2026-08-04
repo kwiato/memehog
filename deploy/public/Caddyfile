@@ -1,0 +1,31 @@
+# Memehog public deployment — Caddy as the only public entrypoint.
+#
+# Replace memy.example with your domain (DNS A/AAAA → the VPS, or proxied
+# through Cloudflare). Caddy fetches Let's Encrypt certificates automatically.
+
+memy.example {
+	# Public traffic is marked with this header; header_up SETS the value,
+	# which also overrides anything a client tried to smuggle in.
+	reverse_proxy memehog:2137 {
+		header_up X-Memehog-Public 1
+	}
+
+	# Media files are named after their content hash — cache them forever.
+	@immutable path /media/* /thumbs/* /static/vendor/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	encode zstd gzip
+}
+
+# Emergency admin access from any browser (day-to-day admin goes through
+# Tailscale directly to the app port — no Caddy involved). Generate the hash:
+#   docker run --rm caddy caddy hash-password --plaintext 'your-password'
+admin.memy.example {
+	basic_auth {
+		admin $2a$14$REPLACE_WITH_YOUR_HASH
+	}
+	# No public header → the app serves the full panel.
+	reverse_proxy memehog:2137 {
+		header_up -X-Memehog-Public
+	}
+}

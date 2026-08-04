@@ -1,0 +1,34 @@
+{% for item in items %}
+<article class="feed-item"
+         data-media="/media/{{ item.filename }}"
+         data-w="{{ item.width or 1600 }}" data-h="{{ item.height or 1600 }}"
+         {% if item.media_type == 'video' %}data-video="1"{% endif %}>
+  {% if item.media_type == 'video' %}
+  <video src="/media/{{ item.filename }}" controls preload="metadata"
+         {% if item.thumb_filename %}poster="/thumbs/{{ item.thumb_filename }}"{% endif %}
+         playsinline loop></video>
+  {% else %}
+  <img src="/media/{{ item.filename }}" alt="{{ item.caption or 'meme' }}"
+       loading="lazy" decoding="async">
+  {% endif %}
+  {% if item.caption or item.tags %}
+  <footer>
+    {% if item.caption %}<p class="caption">{{ item.caption }}</p>{% endif %}
+    <div class="tags">
+      {% for t in item.tags if t.name != 'spicy' %}
+      <button type="button" class="tag" data-feed-tag="{{ t.name }}"
+              {{ 'data-active' if t.name == tag }}>{{ t.name }}</button>
+      {% endfor %}
+    </div>
+  </footer>
+  {% endif %}
+</article>
+{% endfor %}
+
+{% if has_more %}
+<div class="sentinel"
+     hx-get="/public/feed?mode={{ mode }}&q={{ q | urlencode }}&tag={{ tag | urlencode }}&seed={{ seed }}&page={{ page + 1 }}"
+     hx-trigger="revealed" hx-swap="outerHTML"></div>
+{% elif not items and page == 1 %}
+<p class="muted empty">Nothing here{% if q or tag %} for this filter{% endif %} — yet.</p>
+{% endif %}

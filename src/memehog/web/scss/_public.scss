@@ -1,0 +1,75 @@
+// --- public feed ("Feed the hog!") ---
+.public-search {
+  grid-area: search;
+  display: flex;
+
+  input { flex: 1; min-width: 0; }
+}
+
+.feed-modes {
+  grid-area: selects;
+  display: flex;
+  gap: 8px;
+
+  .btn.active { border-color: var(--accent); color: var(--accent); }
+}
+
+.public-feed {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 20px 12px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.feed-item {
+  background: var(--bg2);
+  border: 1px solid var(--bg3);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: zoom-in;
+
+  img,
+  video {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #000;
+  }
+
+  footer {
+    padding: 10px 14px 12px;
+
+    .caption { margin: 0 0 8px; font-size: 14px; }
+    .tags { margin: 0; }
+  }
+
+  .tag {
+    border: none;
+    cursor: pointer;
+    color: var(--fg);
+
+    &[data-active] { outline: 1px solid var(--accent); }
+    &:hover { outline: 1px solid var(--accent); }
+  }
+}
+
+.hog-wall {
+  background: var(--bg2);
+  border: 1px solid var(--bg3);
+  border-radius: var(--radius);
+  padding: 28px 24px 22px;
+  text-align: center;
+
+  .hog-face { font-size: 64px; }
+  h2 { margin: 8px 0 6px; }
+  p { margin: 0 0 14px; }
+  .small { font-size: 12px; margin-bottom: 0; }
+
+  .dropzone { display: block; margin-bottom: 12px; }
+
+  &.fed { border-color: var(--accent); }
+}
+
+.hog-form button[disabled] { opacity: 0.6; }

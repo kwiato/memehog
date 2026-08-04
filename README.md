@@ -137,7 +137,23 @@ Everything lives in `.env` (see [.env.example](.env.example)):
 
 Memehog has no login page — it's designed to sit on a private network. The recommended setup is [Tailscale](https://tailscale.com/): install it on the Pi and your devices, then browse `http://<pi-tailnet-name>:2137` from anywhere. Only the `/api/v1/*` endpoints are additionally protected with the Bearer token, so automations (and the future browser extension) can authenticate.
 
-**Do not port-forward Memehog directly to the internet.**
+**Do not port-forward Memehog directly to the internet** — if you want a public site, use the dedicated public-feed mode below.
+
+### Going public ("Feed the hog!")
+
+Memehog can serve a **public meme feed** next to your private panel — one instance, two faces:
+
+- Anonymous visitors get a simple one-column feed (**Latest | Random**, search over captions/OCR/AI descriptions, tag filters, download/share in the lightbox).
+- Each visitor gets `PUBLIC_DAILY_LIMIT` free memes per day (signed cookie + a per-IP cap). Past the limit the feed turns into a **"Feed the hog!"** wall: uploading a meme instantly unlocks `PUBLIC_UNLOCK_CREDITS` more — while the meme itself lands in the guest quarantine and only enters the library after your 👍 in Telegram (same flow as bot guests, same anti-spam limits).
+- Public traffic is whatever arrives with the `X-Memehog-Public` header, which the bundled Caddy config sets (and strips from incoming requests). Such requests see **only** the feed, static files and non-spicy media — every admin route answers 404 by default-deny, and `/media/spicy/*` is always 403.
+
+Deployment (a €4–5/month VPS is plenty — 2 GB RAM, disk sized to your library):
+
+1. Copy `deploy/public/` to the VPS, put your domain into the `Caddyfile`, fill `.env`.
+2. `docker compose -f docker-compose.public.yml up -d` — Caddy terminates HTTPS, the app listens on localhost only.
+3. Install Tailscale on the VPS for day-to-day admin (`tailscale serve --bg localhost:2137`), and/or set the basic-auth hash for the emergency `admin.` vhost in the Caddyfile.
+4. Migrate your library: stop the Pi instance, `rsync -a` the data dir to the VPS, start.
+5. **Back up** — the VPS now holds the only copy: `scripts/backup.sh` (consistent SQLite snapshot + library) from cron, shipped off-machine with restic/rclone.
 
 ## API
 

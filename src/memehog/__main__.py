@@ -83,7 +83,15 @@ async def run() -> None:
         if effective.vlm_interval_minutes > 0 else "nightly only",
     )
 
-    app = create_app(settings, session_factory, search, queue, scheduler=scheduler)
+    bot = None
+    if settings.bot_token:
+        from aiogram import Bot
+
+        bot = Bot(token=settings.bot_token)
+
+    app = create_app(
+        settings, session_factory, search, queue, scheduler=scheduler, bot=bot
+    )
     server = uvicorn.Server(
         uvicorn.Config(
             app,
@@ -97,12 +105,12 @@ async def run() -> None:
         asyncio.create_task(server.serve(), name="web"),
         asyncio.create_task(queue.run(), name="download-worker"),
     ]
-    if settings.bot_token:
+    if bot is not None:
         from .bot import run_bot
 
         tasks.append(
             asyncio.create_task(
-                run_bot(settings, session_factory, search, queue), name="bot"
+                run_bot(bot, settings, session_factory, search, queue), name="bot"
             )
         )
     else:

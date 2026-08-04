@@ -1,0 +1,26 @@
+<div class="hog-wall">
+  <div class="hog-face">🐗</div>
+  <h2>Feed the hog!</h2>
+  <p>
+    You've scrolled through your free memes for today. Toss the hog a meme of
+    your own to keep going — the owner votes on every snack before it joins
+    the library.
+  </p>
+  <form class="hog-form" hx-post="/public/hog" hx-target="closest .hog-wall"
+        hx-swap="outerHTML" hx-encoding="multipart/form-data">
+    <input type="hidden" name="mode" value="{{ mode }}">
+    <input type="hidden" name="q" value="{{ q }}">
+    <input type="hidden" name="tag" value="{{ tag }}">
+    <input type="hidden" name="seed" value="{{ seed }}">
+    <input type="hidden" name="page" value="{{ page }}">
+    <label class="dropzone">
+      <input type="file" name="file" accept="image/*,video/*" required
+             onchange="this.closest('form').querySelector('button').disabled = !this.files.length">
+      <span class="muted">pick a meme (image or video)</span>
+    </label>
+    <button class="btn primary" type="submit" disabled>
+      <i class="bi bi-heart-fill"></i> Feed the hog<span class="spin"></span>
+    </button>
+  </form>
+  <p class="muted small">Come back tomorrow for another free batch.</p>
+</div>

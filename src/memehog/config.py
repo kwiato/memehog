@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     # odd hours — a model that hit its limit gets retried soon after.
     vlm_interval_minutes: int = 60
 
+    # Public feed (requests arriving through the reverse proxy with the
+    # X-Memehog-Public header): free memes per visitor per day, and how many
+    # extra a "Feed the hog!" upload unlocks.
+    public_daily_limit: int = 30
+    public_unlock_credits: int = 200
+
     # Baked into the Docker image by CI (see docker/Dockerfile); "dev" locally.
     memehog_build_sha: str = "dev"
     memehog_build_date: str = ""

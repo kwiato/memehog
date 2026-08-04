@@ -51,7 +51,12 @@ async def index(
     request: Request,
     tag: str = "",
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ):
+    if getattr(request.state, "public", False):
+        from .public import render_public_index
+
+        return await render_public_index(request, session, settings)
     tags = await items_svc.all_tags(session)
     count = await items_svc.count_items(session)
     # Model filter dropdown — only profiles that have indexed anything yet.

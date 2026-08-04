@@ -1,0 +1,53 @@
+# Memehog on a public VPS: the app is reachable only through Caddy (public
+# feed) and through Tailscale installed on the HOST (full admin panel).
+#
+#   cp .env.example .env   # fill in API_TOKEN, BOT_TOKEN, ALLOWED_TELEGRAM_IDS
+#   docker compose -f docker-compose.public.yml up -d
+#
+# Admin over Tailscale: the app port is published on localhost only; run
+# `tailscale serve --bg localhost:2137` on the host to expose the panel
+# inside your tailnet (or use the admin.* basic-auth vhost in the Caddyfile).
+
+services:
+  memehog:
+    image: hexdesign/memehog:latest
+    container_name: memehog
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN:-}
+      ALLOWED_TELEGRAM_IDS: ${ALLOWED_TELEGRAM_IDS:-}
+      API_TOKEN: ${API_TOKEN:?set API_TOKEN (e.g. openssl rand -hex 24)}
+      HOST: 0.0.0.0
+      PORT: 2137
+      DATA_DIR: /data
+      COOKIES_FILE: ${COOKIES_FILE:-}
+      SCAN_CRON: ${SCAN_CRON:-0 3 * * *}
+      PUBLIC_DAILY_LIMIT: ${PUBLIC_DAILY_LIMIT:-30}
+      PUBLIC_UNLOCK_CREDITS: ${PUBLIC_UNLOCK_CREDITS:-200}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      # Localhost only — the public internet sees Caddy, admins come through
+      # Tailscale on the host.
+      - "127.0.0.1:2137:2137"
+    volumes:
+      - ${HOST_DATA_DIR:?set HOST_DATA_DIR, e.g. /srv/memehog}:/data
+
+  caddy:
+    image: caddy:2
+    container_name: memehog-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

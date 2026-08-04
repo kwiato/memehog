@@ -1,0 +1,20 @@
+{% if error %}
+<div class="hog-wall">
+  <div class="hog-face">🐗</div>
+  <h2>Hmpf.</h2>
+  <p>{{ error }}</p>
+  <p class="muted small">Try a different meme, or come back tomorrow.</p>
+</div>
+{% else %}
+<div class="hog-wall fed">
+  <div class="hog-face">🐗</div>
+  <h2>Nom nom nom…</h2>
+  <p>
+    The hog is chewing — your meme went to the owner for a vote.
+    <strong>+{{ credits }} memes unlocked</strong>, keep scrolling!
+  </p>
+</div>
+<div class="sentinel"
+     hx-get="/public/feed?mode={{ mode }}&q={{ q | urlencode }}&tag={{ tag | urlencode }}&seed={{ seed }}&page={{ page }}"
+     hx-trigger="load delay:600ms" hx-swap="outerHTML"></div>
+{% endif %}

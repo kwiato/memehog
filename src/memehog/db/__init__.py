@@ -20,6 +20,7 @@ from .models import (  # noqa: F401
     Submission,
     Tag,
     TelegramClient,
+    Visitor,
     VlmError,
     VlmProfile,
     VlmSample,

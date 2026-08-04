@@ -92,6 +92,28 @@ def _apply_filters(stmt, *, tag: str, media_type: str, spicy: bool, lang: str = 
     return stmt
 
 
+async def random_feed(
+    session: AsyncSession,
+    *,
+    seed: int,
+    tag: str = "",
+    page: int = 1,
+    page_size: int = PAGE_SIZE,
+) -> list[Item]:
+    """Stable pseudo-random ordering for the public feed: the seed is drawn
+    once per feed session and carried in the query string, so infinite scroll
+    pages never repeat or reshuffle. Spicy is always excluded."""
+    stmt = (
+        select(Item)
+        .options(selectinload(Item.tags))
+        .order_by((Item.id * seed) % 999983, Item.id)
+        .limit(page_size)
+        .offset((max(page, 1) - 1) * page_size)
+    )
+    stmt = _apply_filters(stmt, tag=tag, media_type="", spicy=False)
+    return list((await session.scalars(stmt)).all())
+
+
 async def random_item(
     session: AsyncSession, *, spicy: bool = False, exclude_id: int | None = None
 ) -> Item | None:

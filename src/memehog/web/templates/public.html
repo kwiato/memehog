@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Memehog — meme feed{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/vendor/photoswipe/photoswipe.css">
+{% endblock %}
+{% block content %}
+<header class="topbar public-topbar">
+  <h1><a class="logo" href="/">🐗 Memehog</a>
+    <span class="count">{{ count }} memes</span></h1>
+  <form class="public-search" onsubmit="return false;">
+    <input type="search" id="pub-q" placeholder="Search memes…" autocomplete="off">
+  </form>
+  <nav class="feed-modes">
+    <button class="btn active" data-mode="latest"><i class="bi bi-clock-history"></i> Latest</button>
+    <button class="btn" data-mode="random"><i class="bi bi-shuffle"></i> Random</button>
+  </nav>
+</header>
+
+<main id="feed" class="public-feed"
+      hx-get="/public/feed?mode=latest&seed={{ seed }}&page=1"
+      hx-trigger="load" hx-swap="innerHTML">
+  <p class="muted">Loading…</p>
+</main>
+
+<script>
+  const SEED = {{ seed }};
+  const state = { mode: 'latest', q: '', tag: '' };
+
+  function loadFeed() {
+    const params = new URLSearchParams({
+      mode: state.mode, q: state.q, tag: state.tag,
+      seed: SEED, page: 1,
+    });
+    htmx.ajax('GET', '/public/feed?' + params.toString(), '#feed');
+    document.querySelectorAll('.feed-modes .btn').forEach((b) =>
+      b.classList.toggle('active', b.dataset.mode === state.mode));
+  }
+
+  document.querySelectorAll('.feed-modes .btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.mode = btn.dataset.mode;
+      loadFeed();
+    });
+  });
+
+  let searchTimer;
+  document.getElementById('pub-q').addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      state.q = e.target.value.trim();
+      loadFeed();
+    }, 400);
+  });
+
+  // Tag chips inside feed cards filter the feed.
+  document.getElementById('feed').addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-feed-tag]');
+    if (!chip) return;
+    state.tag = state.tag === chip.dataset.feedTag ? '' : chip.dataset.feedTag;
+    state.q = '';
+    document.getElementById('pub-q').value = '';
+    loadFeed();
+  });
+</script>
+
+<script type="module">
+  import PhotoSwipeLightbox from '/static/vendor/photoswipe/photoswipe-lightbox.esm.min.js';
+  import PhotoSwipeVideoPlugin from '/static/vendor/photoswipe/photoswipe-video-plugin.esm.min.js';
+
+  const feedCards = () =>
+    Array.from(document.querySelectorAll('#feed .feed-item[data-media]'));
+
+  function itemData(card) {
+    const data = {
+      width: parseInt(card.dataset.w, 10) || 1600,
+      height: parseInt(card.dataset.h, 10) || 1600,
+      msrc: card.querySelector('img')?.src,
+      element: card,
+      thumbCropped: false,
+    };
+    if (card.dataset.video === '1') {
+      data.type = 'video';
+      data.videoSrc = card.dataset.media;
+    } else {
+      data.src = card.dataset.media;
+    }
+    return data;
+  }
+
+  const lightbox = new PhotoSwipeLightbox({
+    pswpModule: () => import('/static/vendor/photoswipe/photoswipe.esm.min.js'),
+    bgOpacity: 0.94,
+  });
+  new PhotoSwipeVideoPlugin(lightbox, {});
+  lightbox.addFilter('numItems', () => feedCards().length);
+  lightbox.addFilter('itemData', (d, index) => {
+    const card = feedCards()[index];
+    return card ? itemData(card) : d;
+  });
+  lightbox.addFilter('thumbEl',
+    (thumbEl, data) => data.element?.querySelector('img') || thumbEl);
+
+  // Download + Share buttons in the lightbox top bar (no admin actions here).
+  lightbox.on('uiRegister', () => {
+    lightbox.pswp.ui.registerElement({
+      name: 'pub-download', order: 8, isButton: true, title: 'Download',
+      html: '<svg viewBox="0 0 24 24" width="20" height="20" style="margin:6px"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>',
+      onClick: (e, el, pswp) => {
+        const url = pswp.currSlide?.data?.src || pswp.currSlide?.data?.videoSrc;
+        if (!url) return;
+        const a = document.createElement('a');
+        a.href = url; a.download = ''; a.click();
+      },
+    });
+    lightbox.pswp.ui.registerElement({
+      name: 'pub-share', order: 9, isButton: true, title: 'Share',
+      html: '<svg viewBox="0 0 24 24" width="20" height="20" style="margin:6px"><path d="M15 8a3 3 0 1 0-2.8-4M15 8a3 3 0 1 1-2.8 4M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2.2-4.4l4-2.2m-4 6.2l4 2.2M15 16a3 3 0 1 1-2.8 4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>',
+      onClick: (e, el, pswp) => {
+        const url = pswp.currSlide?.data?.src || pswp.currSlide?.data?.videoSrc;
+        if (url) shareItem(url);
+      },
+    });
+  });
+  lightbox.init();
+
+  document.getElementById('feed').addEventListener('click', (e) => {
+    if (e.target.closest('[data-feed-tag], a, button, video')) return;
+    const card = e.target.closest('.feed-item[data-media]');
+    if (!card) return;
+    lightbox.loadAndOpen(feedCards().indexOf(card));
+  });
+</script>
+{% endblock %}
