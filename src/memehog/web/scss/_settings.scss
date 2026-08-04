@@ -47,7 +47,12 @@
 
   .ok-check { color: $ok-fg; }
 
-  .memes-tags .tag { margin: 1px 2px 1px 0; display: inline-block; }
+  .memes-tags {
+    // Cap the tags column so chips wrap instead of widening the table.
+    max-width: 200px;
+
+    .tag { margin: 1px 2px 1px 0; display: inline-block; }
+  }
 
   input[type="checkbox"] {
     width: 16px;
@@ -154,6 +159,12 @@
   display: flex;
   gap: 4px;
   padding: 0 10px;
+  flex-wrap: wrap;  // four tabs no longer fit one row on phones
+}
+
+@media (max-width: 640px) {
+  .tab { padding: 8px 12px; font-size: 14px; }
+  .memes-table .meme-cell img { width: 36px; height: 36px; }
 }
 .tab {
   padding: 10px 20px;

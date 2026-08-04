@@ -254,6 +254,59 @@ async def test_multiple_active_models_and_search_filter(
         )] == [item.id]
 
 
+async def test_untouched_memes_jump_the_queue(settings, session_factory, search):
+    """A meme no model has described yet is processed before backfilling
+    items that already carry some other model's data; a later run then
+    fills in the gaps until coverage is complete."""
+    from memehog.db.models import VlmProfile, VlmText
+    from sqlalchemy import select
+
+    settings.vlm_rpm = 0
+    settings.vlm_max_per_run = 1
+    item_a = await ingest_png(session_factory, settings, search, name="a.png")
+    async with session_factory() as session:
+        session.add(VlmProfile(
+            name="model-a", base_url="https://x.test/v1",
+            model="vision-a", api_key="test-key",
+        ))
+        await session.commit()
+    reply = {"ocr_text": "", "description": "opis"}
+    assert await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(reply)
+    ) == 1
+
+    # a second model arrives, plus a brand-new meme nobody has described
+    item_b = await ingest_png(
+        session_factory, settings, search, name="b.png", color="blue"
+    )
+    async with session_factory() as session:
+        session.add(VlmProfile(
+            name="model-b", base_url="https://y.test/v1",
+            model="vision-b", api_key="test-key",
+        ))
+        await session.commit()
+
+    assert await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(reply)
+    ) == 2
+    async with session_factory() as session:
+        rows = (await session.scalars(select(VlmText))).all()
+        covered = {(r.item_id, r.profile_id) for r in rows}
+    # both models spent their one slot on the untouched meme — model-b did
+    # not burn it backfilling the item model-a already described
+    assert covered == {(item_a.id, 1), (item_b.id, 1), (item_b.id, 2)}
+
+    # the next quiet run completes the set
+    assert await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(reply)
+    ) == 1
+    async with session_factory() as session:
+        rows = (await session.scalars(select(VlmText))).all()
+        assert {(r.item_id, r.profile_id) for r in rows} == {
+            (item_a.id, 1), (item_a.id, 2), (item_b.id, 1), (item_b.id, 2),
+        }
+
+
 async def test_one_model_failing_does_not_block_the_other(
     settings, session_factory, search
 ):
@@ -404,9 +457,10 @@ async def test_one_bad_reply_does_not_kill_the_batch(
 ):
     """A parse failure (with rollback) must not break processing later items."""
     vlm_settings(settings)
-    bad = await ingest_png(session_factory, settings, search, name="a.png")
-    # different pixels → different sha, so both get ingested
-    good = await ingest_png(
+    good = await ingest_png(session_factory, settings, search, name="a.png")
+    # different pixels → different sha, so both get ingested; the newer one
+    # is processed first (newest-first queue) and hits the broken reply
+    bad = await ingest_png(
         session_factory, settings, search, name="b.png", color="blue"
     )
 
@@ -607,8 +661,8 @@ async def test_language_detection_and_filter(
     )
 
     def handler(request: httpx.Request) -> httpx.Response:
-        # first call answers Polish, second English
-        lang = "pl" if handler.calls == 0 else "en"
+        # newest-first queue: the first call is for item_en, then item_pl
+        lang = "en" if handler.calls == 0 else "pl"
         handler.calls += 1
         content = json.dumps(
             {"ocr_text": "", "description": f"mem {lang}", "lang": lang}

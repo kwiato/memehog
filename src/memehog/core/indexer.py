@@ -20,6 +20,7 @@ from types import SimpleNamespace
 
 import httpx
 import json_repair
+from sqlalchemy import case
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -379,10 +380,20 @@ async def run_indexing(
                 done = select(VlmText.item_id).where(
                     VlmText.profile_id == snap.id
                 )
+                # Memes NO model has touched yet jump the queue — they're
+                # invisible to search until someone describes them. Items that
+                # only miss this particular model fill in afterwards, once the
+                # fresh backlog is clear. Newest first within each bucket.
+                coverage = (
+                    select(func.count(VlmText.id))
+                    .where(VlmText.item_id == Item.id)
+                    .correlate(Item)
+                    .scalar_subquery()
+                )
                 stmt = (
                     select(Item.id)
                     .where(Item.index_status != "failed", Item.id.not_in(done))
-                    .order_by(Item.id)
+                    .order_by(case((coverage == 0, 0), else_=1), Item.id.desc())
                     .limit(settings.vlm_max_per_run)
                 )
                 if not settings.vlm_index_spicy:
