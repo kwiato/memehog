@@ -254,6 +254,21 @@ async def test_multiple_active_models_and_search_filter(
         )] == [item.id]
 
 
+def test_reasoning_model_think_block_is_stripped():
+    """Reasoning models (qwen3.6 on groq...) emit a <think> monologue before
+    the JSON — including stray {braces} that must not be mistaken for it."""
+    from memehog.core.indexer import _parse_response
+
+    content = (
+        '<think>\nDraft: {"ocr_text": "wrong draft"} ...no, let me redo\n'
+        "</think>\n"
+        '{"ocr_text": "BOBER", "description": "bóbr", '
+        '"tags": ["kot"], "lang": "pl"}'
+    )
+    ocr, description, tags, lang = _parse_response(content)
+    assert (ocr, description, tags, lang) == ("BOBER", "bóbr", ["kot"], "pl")
+
+
 async def test_untouched_memes_jump_the_queue(settings, session_factory, search):
     """A meme no model has described yet is processed before backfilling
     items that already carry some other model's data; a later run then

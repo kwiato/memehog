@@ -99,6 +99,12 @@ STATUS = IndexerStatus()
 
 
 def _parse_response(content: str) -> tuple[str, str, list[str], str]:
+    # Reasoning models (qwen3.6 on groq, deepseek-r1...) prepend a
+    # <think>...</think> monologue that may itself contain {braces} — drop it
+    # so the JSON matcher only sees the actual answer. An unclosed <think>
+    # means the model burned its whole token budget thinking; no JSON follows
+    # and the error below reports it.
+    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
     match = _JSON_RE.search(content)
     if not match:
         raise ValueError(f"no JSON object in VLM response: {content[:200]!r}")
@@ -164,9 +170,11 @@ async def describe_image(
     payload = {
         "model": settings.vlm_model,
         # Text-heavy memes (chat screenshots) need generous room — a tight cap
-        # truncates the JSON mid-string. Output tokens are billed as used, so
-        # the high ceiling costs nothing on ordinary memes.
-        "max_tokens": 2048,
+        # truncates the JSON mid-string — and reasoning models spend most of
+        # the budget on <think> monologue before emitting any JSON. Output
+        # tokens are billed as used, so the high ceiling costs nothing on
+        # ordinary memes.
+        "max_tokens": 4096,
         "messages": [
             {
                 "role": "user",
