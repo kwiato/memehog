@@ -253,13 +253,16 @@ HEALTH_WINDOW_HOURS = 24
 
 async def _profile_health(session: AsyncSession) -> dict[int, dict]:
     """Per-profile error stats: recent (24h) counts by kind drive the badge
-    color, the all-time total decides whether the log link shows at all."""
+    color, the all-time total decides whether the log link shows at all.
+    Successful-index counts ride along for contrast in the tooltip."""
     since = utcnow() - timedelta(hours=HEALTH_WINDOW_HOURS)
     health: dict[int, dict] = {}
 
     def entry(pid: int) -> dict:
         return health.setdefault(
-            pid, {"connection": 0, "response": 0, "total": 0}
+            pid,
+            {"connection": 0, "response": 0, "total": 0,
+             "ok24": 0, "ok_total": 0},
         )
 
     recent = await session.execute(
@@ -274,6 +277,18 @@ async def _profile_health(session: AsyncSession) -> dict[int, dict]:
     )
     for pid, count in totals:
         entry(pid)["total"] = count
+    ok_recent = await session.execute(
+        select(VlmText.profile_id, func.count())
+        .where(VlmText.created_at >= since)
+        .group_by(VlmText.profile_id)
+    )
+    for pid, count in ok_recent:
+        entry(pid)["ok24"] = count
+    ok_totals = await session.execute(
+        select(VlmText.profile_id, func.count()).group_by(VlmText.profile_id)
+    )
+    for pid, count in ok_totals:
+        entry(pid)["ok_total"] = count
     for stats in health.values():
         if stats["connection"]:
             stats["level"] = "error"

@@ -595,6 +595,19 @@ async def test_profile_health_badge_and_error_log(
 
     page = await client.get("/settings?tab=ai")
     assert "health-btn error" in page.text
+    # the tooltip shows successful runs for contrast (none yet here)
+    assert "0 indexed," in page.text
+
+    # a healthy run indexes both memes → the success counter climbs
+    await ingest_png(
+        session_factory, settings, search, name="ok.png", color="blue"
+    )
+    reply = {"ocr_text": "", "description": "opis"}
+    await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(reply)
+    )
+    page = await client.get("/settings?tab=ai")
+    assert "2 indexed," in page.text
 
     log_resp = await client.get("/ui/vlm/profiles/1/errors")
     assert log_resp.status_code == 200

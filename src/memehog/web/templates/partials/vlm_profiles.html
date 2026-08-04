@@ -18,12 +18,12 @@
       <td>
         {% set h = health.get(p.id) %}
         {% if not h or h.total == 0 %}
-        <span class="health ok" title="No errors recorded">●</span>
+        <span class="health ok" title="{{ h.ok24 if h else 0 }} indexed in the last 24h ({{ h.ok_total if h else 0 }} all-time) · no errors recorded">●</span>
         {% else %}
         <button class="health-btn {{ h.level }}"
                 hx-get="/ui/vlm/profiles/{{ p.id }}/errors"
                 hx-target="#modal" hx-swap="innerHTML"
-                title="{{ h.connection }} connection / {{ h.response }} bad-response error(s) in the last 24h — click for the log">
+                title="Last 24h: {{ h.ok24 }} indexed, {{ h.connection }} connection / {{ h.response }} bad-response error(s) · {{ h.ok_total }} indexed all-time — click for the error log">
           ● {{ h.connection + h.response if h.level != 'ok' else h.total }}
         </button>
         {% endif %}
