@@ -26,7 +26,8 @@ from ..core import bench as bench_svc
 from ..core import clients as clients_svc
 from ..core import items as items_svc
 from ..core.indexer import STATUS as indexer_status
-from ..core.indexer import describe_image, reindex_item, run_indexing
+from ..core.indexer import describe_image, reindex_item, requeue_items, run_indexing
+from ..core.library import SPICY_TAG
 from ..core.library import ingest_file
 from ..core.queue import DownloadQueue
 from ..db.models import (
@@ -143,6 +144,8 @@ async def _vlm_general_ctx(session: AsyncSession, settings: Settings) -> dict:
 async def settings_page(
     request: Request,
     tab: str = "general",
+    mpage: int = 1,
+    mfilter: str = "",
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
@@ -151,7 +154,7 @@ async def settings_page(
         session, appsettings.SCAN_CRON_KEY, settings.scan_cron
     )
     ctx = {
-        "tab": tab if tab in ("ai", "tags") else "general",
+        "tab": tab if tab in ("ai", "tags", "memes") else "general",
         "tag_stats": await items_svc.tag_stats(session),
         "clients": await clients_svc.list_clients(session),
         "owners": sorted(settings.allowed_ids),
@@ -163,6 +166,8 @@ async def settings_page(
         "build_date": settings.memehog_build_date,
         **await _vlm_general_ctx(session, settings),
     }
+    if ctx["tab"] == "memes":
+        ctx.update(await _memes_ctx(session, mpage, mfilter))
     return templates.TemplateResponse(request, "settings.html", ctx)
 
 
@@ -904,6 +909,94 @@ async def remove_tag(
         raise HTTPException(404, "Item not found")
     item = await items_svc.remove_tag(session, search, item, name)
     return await _detail_response(request, session, item)
+
+
+# --- memes table (settings page) ---------------------------------------------
+
+MEMES_PAGE_SIZE = 50
+
+
+async def _memes_ctx(session: AsyncSession, page: int, flt: str) -> dict:
+    """Table data: which model has processed which meme, plus its tags."""
+    profiles = await _list_profiles(session)
+    active_ids = [p.id for p in profiles if p.active]
+
+    stmt = select(Item).order_by(Item.created_at.desc(), Item.id.desc())
+    if flt == "notags":
+        tagged = (
+            select(ItemTag.item_id)
+            .join(Tag, Tag.id == ItemTag.tag_id)
+            .where(Tag.name != SPICY_TAG)
+        )
+        stmt = stmt.where(Item.id.not_in(tagged))
+    elif flt == "missing" and active_ids:
+        covered = (
+            select(func.count(func.distinct(VlmText.profile_id)))
+            .where(
+                VlmText.item_id == Item.id,
+                VlmText.profile_id.in_(active_ids),
+            )
+            .scalar_subquery()
+        )
+        stmt = stmt.where(covered < len(active_ids))
+
+    total = (
+        await session.scalar(select(func.count()).select_from(stmt.subquery()))
+    ) or 0
+    page = max(page, 1)
+    memes = list(
+        await session.scalars(
+            stmt.limit(MEMES_PAGE_SIZE).offset((page - 1) * MEMES_PAGE_SIZE)
+        )
+    )
+    ids = [m.id for m in memes]
+    texts: set[tuple[int, int]] = set()
+    tag_map: dict[int, list[tuple[str, str]]] = {}
+    if ids:
+        rows = await session.execute(
+            select(VlmText.item_id, VlmText.profile_id).where(
+                VlmText.item_id.in_(ids)
+            )
+        )
+        texts = {(item_id, profile_id) for item_id, profile_id in rows}
+        tag_rows = await session.execute(
+            select(ItemTag.item_id, Tag.name, ItemTag.source)
+            .join(Tag, Tag.id == ItemTag.tag_id)
+            .where(ItemTag.item_id.in_(ids))
+            .order_by(Tag.name)
+        )
+        for item_id, name, source in tag_rows:
+            tag_map.setdefault(item_id, []).append((name, source))
+    return {
+        "memes": memes,
+        "profiles": profiles,
+        "texts": texts,
+        "tag_map": tag_map,
+        "mpage": page,
+        "mfilter": flt,
+        "mpages": max(1, -(-total // MEMES_PAGE_SIZE)),
+        "mtotal": total,
+    }
+
+
+@router.post("/ui/memes/reindex", response_class=HTMLResponse)
+async def memes_reindex(
+    request: Request,
+    ids: list[int] = Form(default=[]),
+    mpage: int = Form(1),
+    mfilter: str = Form(""),
+    session: AsyncSession = Depends(get_session),
+):
+    count = await requeue_items(session, ids)
+    ctx = await _memes_ctx(session, mpage, mfilter)
+    if count:
+        ctx["notice"] = (
+            f"{count} meme(s) queued — every active model will re-process "
+            f"them on its next run (or hit Run indexer now in General)."
+        )
+    return templates.TemplateResponse(
+        request, "partials/settings_memes.html", ctx
+    )
 
 
 # --- tags management (settings page) -----------------------------------------

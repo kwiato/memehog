@@ -1,0 +1,90 @@
+<div id="memes-panel">
+  <div class="tags-header">
+    <div>
+      <h3>Memes</h3>
+      <p class="muted">
+        Per-model AI coverage and tags for every meme. Select rows and
+        re-index to send them through all active models again — useful after
+        adding a model or fixing tagging.
+      </p>
+    </div>
+  </div>
+
+  {% if notice %}
+  <p class="vlm-test ok"><i class="bi bi-check-circle"></i> {{ notice }}</p>
+  {% endif %}
+
+  <div class="memes-filters">
+    <a class="btn small {{ 'primary' if mfilter == '' else '' }}"
+       href="/settings?tab=memes">All</a>
+    <a class="btn small {{ 'primary' if mfilter == 'missing' else '' }}"
+       href="/settings?tab=memes&mfilter=missing">Missing model data</a>
+    <a class="btn small {{ 'primary' if mfilter == 'notags' else '' }}"
+       href="/settings?tab=memes&mfilter=notags">No tags</a>
+    <span class="muted">{{ mtotal }} meme(s)</span>
+  </div>
+
+  <form hx-post="/ui/memes/reindex" hx-target="#memes-panel" hx-swap="outerHTML">
+    <input type="hidden" name="mpage" value="{{ mpage }}">
+    <input type="hidden" name="mfilter" value="{{ mfilter }}">
+    <div class="memes-actions">
+      <button class="btn small" type="submit"
+              hx-confirm="Queue the selected memes for re-indexing by all active models? Their current AI text stays searchable until replaced."
+              ><i class="bi bi-arrow-repeat"></i> Re-index selected<span class="spin"></span></button>
+    </div>
+    <table class="clients-table memes-table">
+      <thead>
+        <tr>
+          <th><input type="checkbox" title="Select all on this page"
+                     onclick="document.querySelectorAll('#memes-panel tbody input[name=ids]').forEach((c) => { c.checked = this.checked; })"></th>
+          <th>Meme</th>
+          {% for p in profiles %}
+          <th title="{{ p.model }}">{{ p.name }}{% if not p.active %} <span class="muted">(off)</span>{% endif %}</th>
+          {% endfor %}
+          <th>Tags</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in memes %}
+        <tr>
+          <td><input type="checkbox" name="ids" value="{{ m.id }}"></td>
+          <td class="meme-cell">
+            {% if m.thumb_filename %}
+            <img src="/thumbs/{{ m.thumb_filename }}" alt="" loading="lazy">
+            {% endif %}
+            <span class="muted">#{{ m.id }}</span>
+          </td>
+          {% for p in profiles %}
+          <td>
+            {% if (m.id, p.id) in texts %}
+            <i class="bi bi-check-lg ok-check" title="Indexed by {{ p.name }}"></i>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          {% endfor %}
+          <td class="memes-tags">
+            {% for name, source in tag_map.get(m.id, []) %}
+            <span class="tag{{ ' ai' if source == 'ai' else '' }}{{ ' spicy-chip' if name == 'spicy' else '' }}">{{ name }}</span>
+            {% else %}<span class="muted">—</span>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not memes %}
+        <tr><td colspan="{{ 3 + profiles|length }}" class="muted">No memes match this filter.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </form>
+
+  {% if mpages > 1 %}
+  <div class="memes-pager">
+    {% if mpage > 1 %}
+    <a class="btn small" href="/settings?tab=memes&mfilter={{ mfilter }}&mpage={{ mpage - 1 }}"><i class="bi bi-chevron-left"></i></a>
+    {% endif %}
+    <span class="muted">page {{ mpage }} / {{ mpages }}</span>
+    {% if mpage < mpages %}
+    <a class="btn small" href="/settings?tab=memes&mfilter={{ mfilter }}&mpage={{ mpage + 1 }}"><i class="bi bi-chevron-right"></i></a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

@@ -21,6 +21,42 @@
   &:hover { outline: 1px solid var(--accent); }
 }
 
+// --- memes table (per-model coverage + batch re-index) ---
+#memes-panel { overflow-x: auto; }
+.memes-filters,
+.memes-actions,
+.memes-pager {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0;
+}
+.memes-table {
+  .meme-cell {
+    white-space: nowrap;
+
+    img {
+      width: 44px;
+      height: 44px;
+      object-fit: cover;
+      border-radius: 6px;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+  }
+
+  .ok-check { color: $ok-fg; }
+
+  .memes-tags .tag { margin: 1px 2px 1px 0; display: inline-block; }
+
+  input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+}
+
 .tags-header {
   display: flex;
   justify-content: space-between;

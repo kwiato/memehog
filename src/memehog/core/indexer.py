@@ -538,6 +538,26 @@ async def run_indexing(
         STATUS.running = False
 
 
+async def requeue_items(session: AsyncSession, item_ids: list[int]) -> int:
+    """Drop the stored model outputs for these items so every active model
+    re-processes them on its next run (nightly/interval/Run now). The FTS
+    copies stay until replaced, so search keeps working in the meantime."""
+    if not item_ids:
+        return 0
+    await session.execute(
+        sa_delete(VlmText).where(VlmText.item_id.in_(item_ids))
+    )
+    from sqlalchemy import update
+
+    await session.execute(
+        update(Item)
+        .where(Item.id.in_(item_ids), Item.index_status == "failed")
+        .values(index_status="pending")
+    )
+    await session.commit()
+    return len(item_ids)
+
+
 async def reindex_item(
     session_factory: async_sessionmaker[AsyncSession],
     settings: Settings,
