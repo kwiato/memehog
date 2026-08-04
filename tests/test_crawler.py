@@ -228,6 +228,30 @@ async def test_rss_source(settings, session_factory):
         assert cand.page_url == "https://memes.example/post/1"
 
 
+async def test_rss_with_junk_after_document(settings, session_factory):
+    """Real feeds (demotywatory, mistrzowie) append an anti-bot <script>
+    after </rss>; the parser must survive it."""
+    settings.crawler_sources = "rss:https://memes.example/feed.xml"
+    feed = """<?xml version="1.0"?>
+    <rss version="2.0"><channel>
+      <item>
+        <title>mem</title>
+        <enclosure url="https://memes.example/img/1.png" type="image/png"/>
+      </item>
+    </channel></rss><script>(function(){var junk=1;})()</script>"""
+    png = make_png("brown", size=(300, 200))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("feed.xml"):
+            return httpx.Response(200, text=feed)
+        return httpx.Response(200, content=png)
+
+    assert await crawl_once(
+        session_factory, settings,
+        transport=httpx.MockTransport(handler), today=TODAY,
+    ) == 1
+
+
 # --- inbox swipe endpoints ---------------------------------------------------
 
 

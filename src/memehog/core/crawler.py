@@ -118,7 +118,16 @@ def _rss_image(entry: ET.Element) -> str:
 async def _fetch_rss(client: httpx.AsyncClient, url: str) -> list[Found]:
     resp = await client.get(url)
     resp.raise_for_status()
-    root = ET.fromstring(resp.text)
+    text = resp.text
+    # Some sites inject an anti-bot/analytics <script> AFTER the closing tag
+    # (demotywatory.pl, mistrzowie.org do) — cut the document at its real end
+    # or ElementTree refuses the whole feed.
+    for closer in ("</rss>", "</feed>"):
+        end = text.find(closer)
+        if end != -1:
+            text = text[: end + len(closer)]
+            break
+    root = ET.fromstring(text)
     host = urlparse(url).hostname or "rss"
     found: list[Found] = []
     entries = root.iter("item")  # RSS 2.0
