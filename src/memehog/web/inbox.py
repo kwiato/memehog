@@ -10,7 +10,7 @@ import httpx
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Settings
@@ -147,7 +147,33 @@ async def _crawler_ctx(session: AsyncSession, settings: Settings) -> dict:
             Candidate.day == _today(), Candidate.status == "pending"
         )
     ) or 0
-    return {"crawler": effective, "inbox_pending": pending}
+    # Source scoreboard: how much of each source's harvest survived the
+    # swipe. Only judged candidates count (expired pending rows are purged).
+    kept = func.sum(case((Candidate.status == "accepted", 1), else_=0))
+    rows = await session.execute(
+        select(Candidate.source, func.count(Candidate.id), kept)
+        .where(Candidate.status != "pending")
+        .group_by(Candidate.source)
+    )
+    stats = sorted(
+        (
+            {
+                "source": source,
+                "judged": judged,
+                "kept": int(kept_count or 0),
+                "rate": round(100 * int(kept_count or 0) / judged),
+            }
+            for source, judged, kept_count in rows
+            if judged
+        ),
+        key=lambda s: s["rate"],
+        reverse=True,
+    )
+    return {
+        "crawler": effective,
+        "inbox_pending": pending,
+        "source_stats": stats,
+    }
 
 
 @router.post("/ui/settings/crawler", response_class=HTMLResponse)

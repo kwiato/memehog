@@ -42,8 +42,12 @@ def test_degenerate_hash_never_matches():
 
 
 def test_parse_sources():
-    assert parse_sources("reddit:memes\n\n  rss:https://x/feed  \n") == [
-        "reddit:memes", "rss:https://x/feed",
+    assert parse_sources(
+        "reddit:memes 40\n\n  rss:https://x/feed  \nreddit:dank\n"
+    ) == [
+        ("reddit:memes", 40),
+        ("rss:https://x/feed", None),
+        ("reddit:dank", None),
     ]
 
 
@@ -158,6 +162,41 @@ async def test_crawl_respects_daily_target(settings, session_factory):
         transport=crawl_transport(listing, images), today=TODAY,
     )
     assert added == 1
+
+
+async def test_per_source_cap(settings, session_factory):
+    """"reddit:memes 1" takes at most one meme from that subreddit even
+    when the daily target has room for more."""
+    settings.crawler_sources = "reddit:memes 1"
+    images = {
+        "a.png": make_png("red"),
+        "b.png": make_png("blue"),
+    }
+    listing = reddit_listing([post("a", 500), post("b", 300)])
+    added = await crawl_once(
+        session_factory, settings,
+        transport=crawl_transport(listing, images), today=TODAY,
+    )
+    assert added == 1
+    async with session_factory() as session:
+        cands = list(await session.scalars(select(Candidate)))
+        assert [c.title for c in cands] == ["meme a"]  # the higher-voted one
+
+
+async def test_source_stats_scoreboard(client, settings, session_factory):
+    """Swiped candidates feed the per-source keep-rate table in settings."""
+    kept = await seed_candidate(session_factory, settings, color="red")
+    lost = await seed_candidate(session_factory, settings, color="blue")
+    async with session_factory() as session:
+        (await session.get(Candidate, kept.id)).status = "accepted"
+        (await session.get(Candidate, lost.id)).status = "rejected"
+        await session.commit()
+
+    page = await client.get("/settings")
+    assert page.status_code == 200
+    assert "reddit:memes" in page.text
+    assert "1/2" in page.text
+    assert "50%" in page.text
 
 
 async def test_rss_source(settings, session_factory):

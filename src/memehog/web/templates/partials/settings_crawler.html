@@ -1,8 +1,9 @@
 <form class="vlm-form" hx-post="/ui/settings/crawler" hx-swap="outerHTML">
   <label>
-    Sources (one per line: <code>reddit:subreddit</code> or <code>rss:feed-url</code>)
+    Sources (one per line: <code>reddit:subreddit</code> or
+    <code>rss:feed-url</code>, optionally followed by a per-day cap)
     <textarea name="sources" rows="4"
-              placeholder="reddit:memes&#10;reddit:ProgrammerHumor&#10;rss:https://example.com/feed.xml">{{ crawler.crawler_sources }}</textarea>
+              placeholder="reddit:memes 40&#10;reddit:ProgrammerHumor&#10;rss:https://example.com/feed.xml 20">{{ crawler.crawler_sources }}</textarea>
   </label>
   <div class="vlm-row">
     <label>Memes per day
@@ -26,4 +27,26 @@
       {{ inbox_pending }} waiting to swipe</a>
     {% endif %}
   </div>
+
+  {% if source_stats %}
+  <table class="clients-table source-stats">
+    <thead>
+      <tr><th>Source</th><th>Kept</th><th>Keep rate</th></tr>
+    </thead>
+    <tbody>
+      {% for s in source_stats %}
+      <tr>
+        <td><code>{{ s.source }}</code></td>
+        <td class="muted">{{ s.kept }}/{{ s.judged }}</td>
+        <td>
+          <div class="rate-bar" title="{{ s.rate }}% of swiped memes kept">
+            <div class="rate-fill" style="width: {{ s.rate }}%"></div>
+            <span>{{ s.rate }}%</span>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
 </form>

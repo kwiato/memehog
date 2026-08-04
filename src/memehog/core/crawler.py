@@ -53,8 +53,17 @@ class Found:
     score: int = 0
 
 
-def parse_sources(raw: str) -> list[str]:
-    return [line.strip() for line in (raw or "").splitlines() if line.strip()]
+def parse_sources(raw: str) -> list[tuple[str, int | None]]:
+    """One source per line, with an optional per-day cap after whitespace:
+    "reddit:memes 40" takes at most 40 candidates from that subreddit."""
+    out: list[tuple[str, int | None]] = []
+    for line in (raw or "").splitlines():
+        parts = line.split()
+        if not parts:
+            continue
+        cap = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None
+        out.append((parts[0], cap))
+    return out
 
 
 def _is_image_url(url: str) -> bool:
@@ -257,20 +266,31 @@ async def crawl_once(
         follow_redirects=True,
     ) as client:
         per_source: list[list[Found]] = []
-        for source in sources:
+        # Per-day cap for each source, keyed by the label its Found rows
+        # carry (== the config token for reddit; "rss:<host>" for feeds).
+        caps: dict[str, int | None] = {}
+        for source, cap in sources:
             try:
-                per_source.append(await fetch_source(client, source))
+                fetched = await fetch_source(client, source)
             except (httpx.HTTPError, ET.ParseError, ValueError) as exc:
                 log.warning("crawler: source %s failed: %s", source, exc)
+                continue
+            per_source.append(fetched)
+            if fetched:
+                caps[fetched[0].source] = cap
         queue = _interleave(per_source)
         log.info(
             "crawler: %d candidate(s) from %d source(s), need %d",
             len(queue), len(per_source), remaining,
         )
 
+        per_label_added: dict[str, int] = {}
         for found in queue:
             if added >= remaining:
                 break
+            cap = caps.get(found.source)
+            if cap is not None and per_label_added.get(found.source, 0) >= cap:
+                continue
             if found.media_url in known_urls:
                 continue
             known_urls.add(found.media_url)
@@ -306,6 +326,9 @@ async def crawl_once(
                 )
                 await session.commit()
             added += 1
+            per_label_added[found.source] = (
+                per_label_added.get(found.source, 0) + 1
+            )
 
     log.info("crawler: added %d candidate(s) for %s", added, today)
     return added
