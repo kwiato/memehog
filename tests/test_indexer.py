@@ -663,6 +663,22 @@ async def test_info_language_dropdown_and_edit(
         assert (await items_svc.get_item(session, item.id)).lang is None
 
 
+async def test_tags_as_comma_string_are_tolerated(
+    settings, session_factory, search
+):
+    """pixtral-style: tags returned as one comma-separated string."""
+    vlm_settings(settings)
+    item = await ingest_png(session_factory, settings, search)
+    reply = {"ocr_text": "", "description": "opis",
+             "tags": "kot, praca; humor"}
+    assert await run_indexing(
+        session_factory, settings, search, transport=vlm_transport(reply)
+    ) == 1
+    async with session_factory() as session:
+        ai = await items_svc.ai_tag_names(session, item.id)
+        assert ai == {"kot", "praca", "humor"}
+
+
 async def test_auto_tagging_can_be_disabled(settings, session_factory, search):
     vlm_settings(settings)
     settings.vlm_auto_tag = False

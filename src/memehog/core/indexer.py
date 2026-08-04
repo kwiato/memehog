@@ -43,8 +43,9 @@ Return ONLY a JSON object with exactly these keys:
 - description: 1-3 sentences in {language} describing what the image shows and,
   if recognizable, the meme template or character names. Use words people would
   type when searching for this meme.
-- tags: 0-{max_tags} short lowercase tags in {language} for the topic, meme
-  template or vibe.{tags_hint}
+- tags: a JSON array of 0-{max_tags} short lowercase tags in {language} for
+  the topic, meme template or vibe (an array of strings, never one comma-
+  separated string).{tags_hint}
 - lang: ISO 639-1 code of the dominant language of the text ON the image,
   e.g. "pl" or "en" ("" when there is no text).
 No markdown fences, no commentary — just the JSON object."""
@@ -113,6 +114,9 @@ def _parse_response(content: str) -> tuple[str, str, list[str], str]:
     ocr = str(data.get("ocr_text") or "").strip()
     description = str(data.get("description") or "").strip()
     raw_tags = data.get("tags") or []
+    if isinstance(raw_tags, str):
+        # Some models return "kot, mem, humor" instead of a JSON array.
+        raw_tags = [part for part in re.split(r"[,;#]+", raw_tags) if part.strip()]
     tags = [str(t) for t in raw_tags] if isinstance(raw_tags, list) else []
     lang = str(data.get("lang") or "").strip().lower()
     if not (2 <= len(lang) <= 8 and lang.isalpha()):
