@@ -10,7 +10,7 @@ from ..config import Settings
 from ..core.library import SPICY_TAG
 from ..core.queue import DownloadQueue
 from ..search.base import SearchBackend
-from . import api, public, ui
+from . import api, inbox, public, ui
 from .styles import ensure_css
 
 # Set by the reverse proxy on the public vhost (and stripped from incoming
@@ -59,6 +59,7 @@ def create_app(
     app.include_router(api.router)
     app.include_router(public.router)
     app.include_router(ui.router)
+    app.include_router(inbox.router)
 
     ensure_css()
     static_dir = Path(__file__).parent / "static"

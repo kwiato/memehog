@@ -1,0 +1,118 @@
+// --- swipe inbox (crawled meme candidates) ---
+.inbox-page {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 14px 12px 30px;
+  // The stack is the whole show — no page scrolling while swiping.
+  touch-action: pan-y;
+}
+
+.inbox-progress {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 10px;
+
+  #inbox-counter { color: var(--fg); font-weight: 600; }
+}
+
+.inbox-stack {
+  position: relative;
+  height: #{"min(66vh, 560px)"};
+}
+
+.swipe-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg2);
+  border: 1px solid var(--bg3);
+  border-radius: var(--radius);
+  overflow: hidden;
+  user-select: none;
+  touch-action: pan-y;
+
+  // Only the top two cards are visible; the rest wait underneath.
+  &:nth-last-of-type(n+3) { visibility: hidden; }
+  &:nth-last-of-type(2) { transform: scale(0.96) translateY(8px); }
+
+  img {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    object-fit: contain;
+    background: var(--bg);
+    pointer-events: none;
+  }
+
+  &.dragging { transition: none; cursor: grabbing; }
+  &:not(.dragging) { transition: transform 0.25s ease, opacity 0.25s ease; }
+
+  &.fly-right { transform: translateX(120vw) rotate(20deg); opacity: 0; }
+  &.fly-left { transform: translateX(-120vw) rotate(-20deg); opacity: 0; }
+}
+
+.swipe-meta {
+  padding: 10px 14px;
+  border-top: 1px solid var(--bg3);
+
+  .swipe-title {
+    margin: 0 0 4px;
+    font-size: 15px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  p.muted { margin: 0; font-size: 12px; }
+  a { color: var(--accent); }
+}
+
+// Verdict stamps fade in while leaning toward a decision.
+.swipe-stamp {
+  position: absolute;
+  top: 18px;
+  font-size: 40px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+
+  &.accept { right: 20px; color: $ok-fg; }
+  &.reject { left: 20px; color: var(--danger); }
+}
+.swipe-card.leaning-right .swipe-stamp.accept { opacity: 1; }
+.swipe-card.leaning-left .swipe-stamp.reject { opacity: 1; }
+
+.inbox-actions {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  margin-top: 18px;
+
+  .btn.round {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    justify-content: center;
+    font-size: 24px;
+  }
+}
+
+.inbox-empty {
+  // Explicit display would beat the UA's [hidden] rule — restore it.
+  &[hidden] { display: none; }
+
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+
+  .hog-emoji { font-size: 56px; margin: 0; }
+  h2 { margin: 0; }
+  a { color: var(--accent); }
+}

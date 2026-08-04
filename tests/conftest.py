@@ -52,8 +52,26 @@ async def client(settings, session_factory, search):
 
 
 def make_png(color: str = "red", size: tuple[int, int] = (64, 48)) -> bytes:
+    """Patterned, color-dependent test image. Flat fills would all share the
+    degenerate all-zero dHash, so the near-duplicate detector needs test
+    images that are genuinely different pictures per color."""
+    from PIL import ImageDraw
+
+    img = Image.new("RGB", size, color)
+    draw = ImageDraw.Draw(img)
+    seed = sum(color) if isinstance(color, tuple) else sum(str(color).encode())
+    # Relative coordinates: the same color at any size is the same picture,
+    # just scaled — exactly what perceptual hashing must treat as equal.
+    for i in range(5):
+        fx = ((seed * (2 * i + 3)) % 97) / 97
+        x = int(fx * size[0])
+        draw.line(
+            [(x, 0), (size[0] - x, size[1])],
+            fill="white" if i % 2 else "black",
+            width=max(2, size[0] // 16),
+        )
     buf = io.BytesIO()
-    Image.new("RGB", size, color).save(buf, "PNG")
+    img.save(buf, "PNG")
     return buf.getvalue()
 
 

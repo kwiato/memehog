@@ -166,6 +166,10 @@ async def settings_page(
         "build_date": settings.memehog_build_date,
         **await _vlm_general_ctx(session, settings),
     }
+    if ctx["tab"] == "general":
+        from .inbox import _crawler_ctx
+
+        ctx.update(await _crawler_ctx(session, settings))
     if ctx["tab"] == "memes":
         ctx.update(await _memes_ctx(session, mpage, mfilter))
     return templates.TemplateResponse(request, "settings.html", ctx)

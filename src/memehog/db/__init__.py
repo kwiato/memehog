@@ -13,10 +13,12 @@ from sqlalchemy.ext.asyncio import (
 from .models import (  # noqa: F401
     AppSetting,
     Base,
+    Candidate,
     Embedding,
     Item,
     ItemTag,
     Job,
+    RejectedHash,
     Submission,
     Tag,
     TelegramClient,
@@ -96,6 +98,11 @@ async def _migrate(conn) -> None:
     cols = {row[1] for row in await conn.execute(text("PRAGMA table_info(items)"))}
     if "lang" not in cols:
         await conn.execute(text("ALTER TABLE items ADD COLUMN lang VARCHAR(8)"))
+    if "phash" not in cols:
+        await conn.execute(text("ALTER TABLE items ADD COLUMN phash VARCHAR(16)"))
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_items_phash ON items (phash)")
+        )
 
     cols = {
         row[1] for row in await conn.execute(text("PRAGMA table_info(item_tags)"))

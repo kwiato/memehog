@@ -11,10 +11,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Settings
-from ..db.models import Item, Submission, utcnow
+from ..db.models import Item, RejectedHash, Submission, utcnow
 from ..search.base import SearchBackend
 from .library import ingest_file, is_nsfw_text
 from .media import sha256_file
+from .phash import near_any, phash_file
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +54,20 @@ async def create_submission(
         )
         if in_library is not None or already_submitted is not None:
             return None, "duplicate"
+
+        # sha only catches byte-identical files — dHash also rejects the same
+        # meme re-encoded/re-scaled, or one the owner already swiped away.
+        phash = await asyncio.to_thread(phash_file, src_path)
+        if phash is not None:
+            known = list(
+                (await session.scalars(
+                    select(Item.phash).where(Item.phash.is_not(None))
+                )).all()
+            ) + list(
+                (await session.scalars(select(RejectedHash.phash))).all()
+            )
+            if near_any(phash, known):
+                return None, "duplicate"
 
         ext = src_path.suffix.lower() or ".bin"
         rel = f"{sha[:16]}{ext}"

@@ -43,6 +43,10 @@ class Item(Base):
     height: Mapped[int | None] = mapped_column(Integer, default=None)
     duration: Mapped[float | None] = mapped_column(Float, default=None)
     thumb_filename: Mapped[str | None] = mapped_column(String(255), default=None)
+    # 64-bit dHash as 16-char hex — near-duplicate detection (see core.phash).
+    # NULL for items ingested before the column existed (nightly backfill)
+    # or whose pixels couldn't be read.
+    phash: Mapped[str | None] = mapped_column(String(16), default=None, index=True)
     # ISO 639-1 code of the meme text's language, detected by the first model
     # that indexes the item (NULL until then / when the meme has no text).
     lang: Mapped[str | None] = mapped_column(String(8), default=None)
@@ -239,6 +243,47 @@ class Submission(Base):
     # JSON list of [chat_id, message_id] pairs of the owner vote messages,
     # so they can be edited once a decision is made.
     vote_msgs: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class Candidate(Base):
+    """A meme found by the crawler, waiting in the swipe inbox.
+
+    Only a local thumbnail is stored until the owner swipes right — then the
+    full file is downloaded and ingested through the normal pipeline. Each
+    day's crawl builds a fresh batch (`day`); unswiped leftovers from earlier
+    days are purged so the inbox never turns into an infinite backlog."""
+
+    __tablename__ = "candidates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(64))  # "reddit:memes", "rss:<host>"
+    # Post/page the meme came from (credit + debugging), and the direct media.
+    page_url: Mapped[str] = mapped_column(Text, default="")
+    media_url: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(Text, default="")
+    score: Mapped[int] = mapped_column(Integer, default=0)  # upvotes etc.
+    phash: Mapped[str | None] = mapped_column(String(16), default=None)
+    # Local thumbnail relative to the candidates dir.
+    thumb_filename: Mapped[str | None] = mapped_column(String(255), default=None)
+    day: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD batch
+    status: Mapped[str] = mapped_column(
+        String(16), default="pending"
+    )  # pending | accepted | rejected
+    item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("items.id", ondelete="SET NULL"), default=None
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class RejectedHash(Base):
+    """Fingerprint of a meme swiped left — never offered again, from any
+    source, in any re-encode."""
+
+    __tablename__ = "rejected_hashes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    phash: Mapped[str] = mapped_column(String(16), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

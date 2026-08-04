@@ -13,7 +13,9 @@ from .config import Settings
 from .core import appsettings
 from .core.appsettings import NIGHTLY_JOB_ID, SCAN_CRON_KEY, get_setting
 from .core.convert import run_conversions
+from .core.crawler import CRAWLER_JOB_ID, crawl_once
 from .core.indexer import run_indexing
+from .core.phash import backfill_phashes
 from .core.queue import DownloadQueue
 from .db import create_engine, init_db
 from .db.models import Item
@@ -26,6 +28,7 @@ log = logging.getLogger("memehog")
 async def nightly_maintenance(session_factory, settings, search) -> None:
     """Nightly batch: transcode webp/webm, then VLM-index new items."""
     converted = await run_conversions(session_factory, settings, search)
+    await backfill_phashes(session_factory, settings)
     indexed = await run_indexing(session_factory, settings, search)
     async with session_factory() as session:
         pending = await session.scalar(
@@ -75,6 +78,15 @@ async def run() -> None:
             id=appsettings.VLM_INTERVAL_JOB_ID,
             args=[session_factory, settings, search],
         )
+    # Daily crawl for the swipe inbox. Scheduled even with no sources
+    # configured — crawl_once no-ops then, and the settings UI reschedules
+    # the hour live.
+    scheduler.add_job(
+        crawl_once,
+        CronTrigger(hour=effective.crawler_hour, minute=0),
+        id=CRAWLER_JOB_ID,
+        args=[session_factory, settings],
+    )
     scheduler.start()
     log.info(
         "Nightly maintenance scheduled: %s; indexer interval: %s",

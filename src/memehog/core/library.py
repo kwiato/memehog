@@ -12,6 +12,7 @@ from ..config import Settings
 from ..db.models import Item, Tag, utcnow
 from ..search.base import SearchBackend
 from .media import make_thumbnail, probe, sha256_file
+from .phash import phash_file
 
 log = logging.getLogger(__name__)
 
@@ -65,6 +66,13 @@ async def ingest_file(
         make_thumbnail, dest, settings.thumbs_dir / thumb_rel, info.media_type
     )
 
+    # Perceptual fingerprint: from the pixels for stills, from the thumbnail
+    # frame for videos (Pillow can't read those).
+    phash_src = dest if info.media_type != "video" else (
+        settings.thumbs_dir / thumb_rel if thumb_ok else None
+    )
+    phash = await asyncio.to_thread(phash_file, phash_src) if phash_src else None
+
     tags: list[Tag] = []
     if spicy:
         tag = await session.scalar(select(Tag).where(Tag.name == SPICY_TAG))
@@ -88,6 +96,7 @@ async def ingest_file(
         height=info.height,
         duration=info.duration,
         thumb_filename=thumb_rel if thumb_ok else None,
+        phash=phash,
         # Initialize the collection so accessing .tags on this fresh instance
         # never triggers a sync lazy-load (forbidden under asyncio).
         tags=tags,

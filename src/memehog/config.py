@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     # odd hours — a model that hit its limit gets retried soon after.
     vlm_interval_minutes: int = 60
 
+    # Meme crawler: daily batch for the swipe inbox. Sources are one per
+    # line: "reddit:<subreddit>" or "rss:<feed url>". Empty list = crawler
+    # off. All overridable from the settings UI.
+    crawler_sources: str = ""
+    crawler_daily_target: int = 120
+    # Hour (local) at which the daily crawl runs.
+    crawler_hour: int = 6
+
     # Public feed (requests arriving through the reverse proxy with the
     # X-Memehog-Public header): free memes per visitor per day, and how many
     # extra a "Feed the hog!" upload unlocks.
@@ -82,6 +90,11 @@ class Settings(BaseSettings):
         return self.data_dir / "pending"
 
     @property
+    def candidates_dir(self) -> Path:
+        """Thumbnails of crawled memes waiting in the swipe inbox."""
+        return self.data_dir / "candidates"
+
+    @property
     def db_path(self) -> Path:
         return self.data_dir / "memehog.db"
 
@@ -90,5 +103,6 @@ class Settings(BaseSettings):
         return Path(self.cookies_file) if self.cookies_file else None
 
     def ensure_dirs(self) -> None:
-        for d in (self.library_dir, self.thumbs_dir, self.tmp_dir, self.pending_dir):
+        for d in (self.library_dir, self.thumbs_dir, self.tmp_dir,
+                  self.pending_dir, self.candidates_dir):
             d.mkdir(parents=True, exist_ok=True)

@@ -66,6 +66,7 @@
     <details class="dropdown">
       <summary class="btn" title="Menu"><i class="bi bi-list"></i></summary>
       <nav class="dropdown-menu">
+        <button onclick="location.href='/inbox'"><i class="bi bi-inbox"></i> Inbox</button>
         <button onclick="location.href='/settings'"><i class="bi bi-gear"></i> Settings</button>
         <button hx-get="/ui/about" hx-target="#modal" hx-swap="innerHTML"
                 onclick="this.closest('details').removeAttribute('open')"><i class="bi bi-info-circle"></i> About</button>

@@ -1,0 +1,29 @@
+<form class="vlm-form" hx-post="/ui/settings/crawler" hx-swap="outerHTML">
+  <label>
+    Sources (one per line: <code>reddit:subreddit</code> or <code>rss:feed-url</code>)
+    <textarea name="sources" rows="4"
+              placeholder="reddit:memes&#10;reddit:ProgrammerHumor&#10;rss:https://example.com/feed.xml">{{ crawler.crawler_sources }}</textarea>
+  </label>
+  <div class="vlm-row">
+    <label>Memes per day
+      <input type="number" name="daily_target" min="1" max="500"
+             value="{{ crawler.crawler_daily_target }}">
+    </label>
+    <label>Crawl at (hour)
+      <input type="number" name="hour" min="0" max="23"
+             value="{{ crawler.crawler_hour }}">
+    </label>
+  </div>
+  <div class="vlm-actions">
+    <button class="btn primary" type="submit">Save<span class="spin"></span></button>
+    <button class="btn" type="button" hx-post="/ui/crawler/run"
+            hx-target="#crawler-run-result" hx-swap="innerHTML"
+            hx-disabled-elt="this"
+            ><i class="bi bi-binoculars"></i> Crawl now<span class="spin"></span></button>
+    <span id="crawler-run-result"></span>
+    {% if inbox_pending %}
+    <a class="btn" href="/inbox"><i class="bi bi-inbox"></i>
+      {{ inbox_pending }} waiting to swipe</a>
+    {% endif %}
+  </div>
+</form>

@@ -24,14 +24,23 @@ VLM_FIELDS: tuple[str, ...] = (
     "vlm_interval_minutes",
 )
 
+CRAWLER_FIELDS: tuple[str, ...] = (
+    "crawler_sources",
+    "crawler_daily_target",
+    "crawler_hour",
+)
+
 
 def _parse_vlm(field: str, value: str):
     if field == "vlm_rpm":
         return float(value)
-    if field in ("vlm_max_per_run", "vlm_interval_minutes"):
+    if field in ("vlm_max_per_run", "vlm_interval_minutes",
+                 "crawler_daily_target", "crawler_hour"):
         return int(value)
     if field in ("vlm_index_spicy", "vlm_auto_tag"):
         return value.strip().lower() in ("1", "true", "on", "yes")
+    if field == "crawler_sources":
+        return value  # multi-line, keep verbatim
     return value.strip()
 
 
@@ -43,7 +52,7 @@ async def effective_settings(session: AsyncSession, settings: Settings) -> Setti
     fields used to bootstrap the first profile.
     """
     updates = {}
-    for field in VLM_FIELDS:
+    for field in VLM_FIELDS + CRAWLER_FIELDS:
         row = await session.get(AppSetting, field)
         if row is None:
             continue

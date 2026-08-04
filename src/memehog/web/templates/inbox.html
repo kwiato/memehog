@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Inbox — Memehog{% endblock %}
+{% block content %}
+<header class="topbar">
+  <h1><a class="logo" href="/">🐗 Memehog</a></h1>
+  <nav class="main-nav">
+    <a class="btn" href="/"><i class="bi bi-images"></i> Gallery</a>
+    <a class="btn active" href="/inbox"><i class="bi bi-inbox"></i> Inbox</a>
+    <a class="btn" href="/settings"><i class="bi bi-gear"></i> Settings</a>
+  </nav>
+</header>
+
+<main class="inbox-page">
+  <div class="inbox-progress">
+    <span id="inbox-counter">{{ done }}/{{ total }}</span> today
+  </div>
+
+  <div class="inbox-stack" id="inbox-stack">
+    {% for c in candidates | reverse %}
+    <article class="swipe-card" data-id="{{ c.id }}">
+      {% if c.thumb_filename %}
+      <img src="/candidates/{{ c.thumb_filename }}" alt="" draggable="false"
+           {{ 'loading=lazy' if loop.index0 < (candidates | length) - 3 }}>
+      {% endif %}
+      <div class="swipe-meta">
+        <p class="swipe-title">{{ c.title }}</p>
+        <p class="muted">
+          {{ c.source }}{% if c.score %} · ▲{{ c.score }}{% endif %}
+          {% if c.page_url %}
+          · <a href="{{ c.page_url }}" target="_blank" rel="noopener">source</a>
+          {% endif %}
+        </p>
+      </div>
+      <div class="swipe-stamp reject"><i class="bi bi-x-lg"></i></div>
+      <div class="swipe-stamp accept"><i class="bi bi-heart-fill"></i></div>
+    </article>
+    {% endfor %}
+    <div class="inbox-empty" {% if candidates %}hidden{% endif %}>
+      <p class="hog-emoji">🐗</p>
+      {% if total == 0 %}
+      <h2>Nothing to swipe</h2>
+      <p class="muted">
+        The crawler hasn't gathered anything today. Configure sources in
+        <a href="/settings">Settings</a> or run a crawl now.
+      </p>
+      {% else %}
+      <h2>Hog is full for today!</h2>
+      <p class="muted">Fresh memes arrive with tomorrow's crawl.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="inbox-actions" {% if not candidates %}hidden{% endif %}>
+    <button class="btn danger round" id="btn-reject" title="Reject (←)"><i class="bi bi-x-lg"></i></button>
+    <button class="btn primary round" id="btn-accept" title="Keep (→)"><i class="bi bi-heart-fill"></i></button>
+  </div>
+</main>
+
+<script>
+(() => {
+  const stack = document.getElementById('inbox-stack');
+  const counter = document.getElementById('inbox-counter');
+  const actions = document.querySelector('.inbox-actions');
+  let done = {{ done }};
+  const total = {{ total }};
+  let busy = false;
+
+  const topCard = () => stack.querySelector('.swipe-card:last-of-type');
+
+  async function decide(card, accept) {
+    if (!card || busy) return;
+    busy = true;
+    card.classList.add(accept ? 'fly-right' : 'fly-left');
+    const id = card.dataset.id;
+    const resp = fetch(`/ui/inbox/${id}/${accept ? 'accept' : 'reject'}`,
+                       {method: 'POST'});
+    setTimeout(() => {
+      card.remove();
+      counter.textContent = `${++done}/${total}`;
+      if (!topCard()) {
+        document.querySelector('.inbox-empty').hidden = false;
+        actions.hidden = true;
+      }
+      busy = false;
+    }, 250);
+    try {
+      const r = await resp;
+      if (!r.ok && r.status !== 502) console.warn('swipe failed', r.status);
+    } catch (e) { console.warn('swipe failed', e); }
+  }
+
+  document.getElementById('btn-accept').onclick = () => decide(topCard(), true);
+  document.getElementById('btn-reject').onclick = () => decide(topCard(), false);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') decide(topCard(), true);
+    if (e.key === 'ArrowLeft') decide(topCard(), false);
+  });
+
+  // Pointer-drag swiping on the top card.
+  let drag = null;
+  const THRESHOLD = 90;
+
+  stack.addEventListener('pointerdown', (e) => {
+    const card = topCard();
+    if (!card || busy || !card.contains(e.target) || e.target.closest('a')) return;
+    drag = {card, x0: e.clientX, y0: e.clientY, dx: 0};
+    card.setPointerCapture(e.pointerId);
+    card.classList.add('dragging');
+  });
+  stack.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    drag.dx = e.clientX - drag.x0;
+    const rot = drag.dx / 18;
+    drag.card.style.transform = `translateX(${drag.dx}px) rotate(${rot}deg)`;
+    drag.card.classList.toggle('leaning-right', drag.dx > 40);
+    drag.card.classList.toggle('leaning-left', drag.dx < -40);
+  });
+  const endDrag = (e) => {
+    if (!drag) return;
+    const {card, dx} = drag;
+    card.classList.remove('dragging', 'leaning-right', 'leaning-left');
+    card.style.transform = '';
+    drag = null;
+    if (dx > THRESHOLD) decide(card, true);
+    else if (dx < -THRESHOLD) decide(card, false);
+  };
+  stack.addEventListener('pointerup', endDrag);
+  stack.addEventListener('pointercancel', endDrag);
+})();
+</script>
+{% endblock %}
