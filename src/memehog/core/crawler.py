@@ -70,11 +70,42 @@ def _is_image_url(url: str) -> bool:
     return urlparse(url).path.lower().endswith(MEDIA_EXTS)
 
 
-async def _fetch_reddit(client: httpx.AsyncClient, sub: str) -> list[Found]:
-    resp = await client.get(
-        f"https://www.reddit.com/r/{sub}/top.json",
-        params={"t": "day", "limit": 60},
-    )
+REDDIT_TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
+
+
+async def reddit_token(
+    client: httpx.AsyncClient, client_id: str, secret: str
+) -> str | None:
+    """App-only OAuth token (client_credentials) for a "script" app."""
+    try:
+        resp = await client.post(
+            REDDIT_TOKEN_URL,
+            data={"grant_type": "client_credentials"},
+            auth=(client_id, secret),
+        )
+        resp.raise_for_status()
+        return resp.json().get("access_token")
+    except httpx.HTTPError as exc:
+        log.warning("crawler: reddit OAuth token failed: %s", exc)
+        return None
+
+
+async def _fetch_reddit(
+    client: httpx.AsyncClient, sub: str, token: str | None = None
+) -> list[Found]:
+    if token:
+        resp = await client.get(
+            f"https://oauth.reddit.com/r/{sub}/top",
+            params={"t": "day", "limit": 60, "raw_json": 1},
+            headers={"Authorization": f"bearer {token}"},
+        )
+    else:
+        # Anonymous listing — works from residential networks, but reddit
+        # 403s many others; configure OAuth credentials in settings then.
+        resp = await client.get(
+            f"https://www.reddit.com/r/{sub}/top.json",
+            params={"t": "day", "limit": 60},
+        )
     resp.raise_for_status()
     found: list[Found] = []
     for child in resp.json().get("data", {}).get("children", []):
@@ -156,10 +187,12 @@ async def _fetch_rss(client: httpx.AsyncClient, url: str) -> list[Found]:
     return found
 
 
-async def fetch_source(client: httpx.AsyncClient, source: str) -> list[Found]:
+async def fetch_source(
+    client: httpx.AsyncClient, source: str, reddit_token: str | None = None
+) -> list[Found]:
     kind, _, arg = source.partition(":")
     if kind == "reddit":
-        return await _fetch_reddit(client, arg)
+        return await _fetch_reddit(client, arg, token=reddit_token)
     if kind == "rss":
         return await _fetch_rss(client, arg)
     raise ValueError(f"unknown source type: {source!r}")
@@ -274,13 +307,23 @@ async def crawl_once(
         timeout=30,
         follow_redirects=True,
     ) as client:
+        token = None
+        if any(s.startswith("reddit:") for s, _ in sources) and (
+            effective.crawler_reddit_client_id
+            and effective.crawler_reddit_secret
+        ):
+            token = await reddit_token(
+                client,
+                effective.crawler_reddit_client_id,
+                effective.crawler_reddit_secret,
+            )
         per_source: list[list[Found]] = []
         # Per-day cap for each source, keyed by the label its Found rows
         # carry (== the config token for reddit; "rss:<host>" for feeds).
         caps: dict[str, int | None] = {}
         for source, cap in sources:
             try:
-                fetched = await fetch_source(client, source)
+                fetched = await fetch_source(client, source, reddit_token=token)
             except (httpx.HTTPError, ET.ParseError, ValueError) as exc:
                 log.warning("crawler: source %s failed: %s", source, exc)
                 continue

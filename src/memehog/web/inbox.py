@@ -182,6 +182,8 @@ async def set_crawler(
     sources: str = Form(""),
     daily_target: int = Form(120),
     hour: int = Form(6),
+    reddit_client_id: str = Form(""),
+    reddit_secret: str = Form(""),
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ):
@@ -191,6 +193,12 @@ async def set_crawler(
         session, "crawler_daily_target", str(max(daily_target, 1))
     )
     await appsettings.set_setting(session, "crawler_hour", str(hour))
+    await appsettings.set_setting(
+        session, "crawler_reddit_client_id", reddit_client_id.strip()
+    )
+    await appsettings.set_setting(
+        session, "crawler_reddit_secret", reddit_secret.strip()
+    )
 
     scheduler = request.app.state.scheduler
     if scheduler is not None:

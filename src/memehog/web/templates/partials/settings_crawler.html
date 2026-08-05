@@ -15,6 +15,24 @@
              value="{{ crawler.crawler_hour }}">
     </label>
   </div>
+  <div class="vlm-row">
+    <label>Reddit app client ID
+      <input type="text" name="reddit_client_id" autocomplete="off"
+             value="{{ crawler.crawler_reddit_client_id }}">
+    </label>
+    <label>Reddit app secret
+      <input type="password" name="reddit_secret" autocomplete="off"
+             value="{{ crawler.crawler_reddit_secret }}">
+    </label>
+  </div>
+  <p class="muted">
+    Reddit rejects anonymous crawling from many networks (HTTP 403). Fix:
+    create a free app at
+    <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener">reddit.com/prefs/apps</a>
+    (type <strong>script</strong>, redirect URI can be
+    <code>http://localhost</code>), then paste the ID shown under the app
+    name and its secret here — the crawler switches to the official API.
+  </p>
   <div class="vlm-actions">
     <button class="btn primary" type="submit">Save<span class="spin"></span></button>
     <button class="btn" type="button" hx-post="/ui/crawler/run"

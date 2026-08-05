@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     crawler_daily_target: int = 120
     # Hour (local) at which the daily crawl runs.
     crawler_hour: int = 6
+    # Reddit blocks anonymous listing requests from many networks. A free
+    # "script" app (reddit.com/prefs/apps) fixes that: with credentials set,
+    # the crawler uses the official OAuth API instead.
+    crawler_reddit_client_id: str = ""
+    crawler_reddit_secret: str = ""
 
     # Public feed (requests arriving through the reverse proxy with the
     # X-Memehog-Public header): free memes per visitor per day, and how many

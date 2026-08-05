@@ -164,6 +164,37 @@ async def test_crawl_respects_daily_target(settings, session_factory):
     assert added == 1
 
 
+async def test_reddit_oauth_path(settings, session_factory):
+    """With app credentials set the crawler grabs a token and talks to
+    oauth.reddit.com with a bearer header."""
+    settings.crawler_sources = "reddit:memes"
+    settings.crawler_reddit_client_id = "cid"
+    settings.crawler_reddit_secret = "sec"
+    png = make_png("red", size=(320, 240))
+    seen = {"token": False, "oauth": False}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.endswith("/api/v1/access_token"):
+            seen["token"] = True
+            assert request.headers["Authorization"].startswith("Basic ")
+            return httpx.Response(200, json={"access_token": "tok-123"})
+        if url.startswith("https://oauth.reddit.com/r/memes/top"):
+            seen["oauth"] = True
+            assert request.headers["Authorization"] == "bearer tok-123"
+            return httpx.Response(200, json=reddit_listing([post("a", 500)]))
+        if url.endswith("a.png"):
+            return httpx.Response(200, content=png)
+        raise AssertionError(f"unexpected URL {url}")
+
+    added = await crawl_once(
+        session_factory, settings,
+        transport=httpx.MockTransport(handler), today=TODAY,
+    )
+    assert added == 1
+    assert seen == {"token": True, "oauth": True}
+
+
 async def test_per_source_cap(settings, session_factory):
     """"reddit:memes 1" takes at most one meme from that subreddit even
     when the daily target has room for more."""

@@ -28,6 +28,8 @@ CRAWLER_FIELDS: tuple[str, ...] = (
     "crawler_sources",
     "crawler_daily_target",
     "crawler_hour",
+    "crawler_reddit_client_id",
+    "crawler_reddit_secret",
 )
 
 
